@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fixture, startStudio, tempProject } from './harness.ts';
+import { fixture, startStudio, tempProject, postJson } from './harness.ts';
 
 const p = 'playtest/';
 
@@ -46,7 +46,7 @@ test('Feedback pinned to a finding is written to disk and resolves by heading or
   t.after(studio.stop);
 
   const pin = finding('round-1/REPORT.md', 'top-issues/2', 'Chain runaway');
-  const res = await fetch(`${studio.url}/__studio/feedback`, { method: 'POST', body: JSON.stringify({ remark: 'Cap the chain', pin }) });
+  const res = await postJson(`${studio.url}/__studio/feedback`, { remark: 'Cap the chain', pin });
   assert.equal(res.status, 201);
   const [file] = readdirSync(join(dir, 'feedback'));
   assert.match(readFileSync(join(dir, 'feedback', file), 'utf8'),
@@ -64,7 +64,7 @@ test('Feedback pinned to a finding is written to disk and resolves by heading or
     [finding('round-9/REPORT.md', undefined, 'no such round'), false],
     [{ kind: 'playtest', path: 'README.md', label: 'outside the playtests root' }, false],
   ] as const;
-  for (const [pin] of pins) await fetch(`${studio.url}/__studio/feedback`, { method: 'POST', body: JSON.stringify({ remark: 'x', pin }) });
+  for (const [pin] of pins) await postJson(`${studio.url}/__studio/feedback`, { remark: 'x', pin });
   const items: { pin: { label: string }; resolved: boolean }[] = await (await fetch(`${studio.url}/__studio/feedback`)).json();
   for (const [pin, resolved] of pins) assert.equal(items.find((i) => i.pin.label === pin.label)?.resolved, resolved, pin.label);
 });

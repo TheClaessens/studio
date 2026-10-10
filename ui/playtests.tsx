@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
 import { PinForm } from './feedback.tsx';
+import { routeHref, splitRoute } from './hash.ts';
 
 type File = { path: string; markdown: boolean };
 type Listing = { rounds: { name: string; files: File[] }[]; files: File[] };
 
-const link = (path: string, anchor?: string) => `#Playtests/${encodeURI(path)}${anchor ? `#${anchor}` : ''}`;
+const link = (path: string, anchor?: string) => routeHref('Playtests', path, anchor);
 const name = (path: string) => path.slice(path.lastIndexOf('/') + 1);
 
 function Files({ files, selected }: { files: File[]; selected: string }) {
@@ -26,9 +27,7 @@ function Files({ files, selected }: { files: File[]; selected: string }) {
 export function Playtests({ route }: { route: string }) {
   const [listing, setListing] = useState<Listing>({ rounds: [], files: [] });
   const [text, setText] = useState<string>();
-  const hash = route.indexOf('#');
-  const path = hash < 0 ? route : route.slice(0, hash);
-  const anchor = hash < 0 ? undefined : route.slice(hash + 1);
+  const [path, anchor] = splitRoute(route);
   const all = [...listing.rounds.flatMap((r) => r.files), ...listing.files];
   const latest = listing.rounds[0]?.files;
   const selected = path || latest?.find((f) => name(f.path) === 'REPORT.md')?.path || all[0]?.path;

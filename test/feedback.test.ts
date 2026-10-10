@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { startStudio, tempProject } from './harness.ts';
+import { startStudio, tempProject, postJson } from './harness.ts';
 
 const doc = '# Design\n\n## Combat\n\nHit things.\n\n## Notes\n\none\n\n## Notes\n\ntwo\n\n```\n# not a heading\n```\n';
 
@@ -19,11 +19,11 @@ function project(manifest: Record<string, unknown> = { docs: ['DESIGN.md'] }) {
 const docPin = (anchor = 'combat', label = 'Combat') => ({ kind: 'doc', path: 'DESIGN.md', anchor, label });
 
 async function create(url: string, body: unknown) {
-  return fetch(`${url}/__studio/feedback`, { method: 'POST', body: JSON.stringify(body) });
+  return postJson(`${url}/__studio/feedback`, body);
 }
 const list = async (url: string) => (await fetch(`${url}/__studio/feedback`)).json();
 const act = (url: string, name: string, action: string, body: unknown = {}) =>
-  fetch(`${url}/__studio/feedback/${name}/${action}`, { method: 'POST', body: JSON.stringify(body) });
+  postJson(`${url}/__studio/feedback/${name}/${action}`, body);
 
 test('creating Feedback writes one markdown file named by timestamp and slug into feedback/', async (t) => {
   const dir = project();
@@ -93,9 +93,12 @@ test('a malformed create is refused and writes nothing', async (t) => {
     { remark: 'x', pin: { kind: 'doc', path: '../escape.md', label: 'l' } },
     { remark: 'x', pin: { kind: 'doc', path: '/etc/passwd', label: 'l' } },
     { remark: 'x', pin: docPin(), attachments: { screenshot: 'data:text/html;base64,PGI+' } },
+    // an attachment may not overwrite a Pin field
+    ...['path', 'kind', 'label', 'anchor', 'id'].map((field) => ({ remark: 'x', pin: docPin(), attachments: { [field]: 'data:image/png;base64,iVBO' } })),
+    { remark: 'x', pin: { ...docPin(), region: { x: 0 } }, attachments: { region: 'data:image/png;base64,iVBO' } },
   ];
   for (const body of bad) {
-    const res = await fetch(`${studio.url}/__studio/feedback`, { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) });
+    const res = await postJson(`${studio.url}/__studio/feedback`, body);
     assert.equal(res.status, 400, JSON.stringify(body));
   }
   assert.ok(!existsSync(join(dir, 'feedback')));

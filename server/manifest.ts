@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Ajv } from 'ajv';
 import { schema } from './schema.ts';
+import { inside } from './static.ts';
 
 export type Manifest = {
   studio: string;
@@ -18,10 +19,10 @@ export type Manifest = {
 
 const validate = new Ajv({ allErrors: true }).compile(schema);
 
-/** x-range pins only: "1.x", "1.2.x", "1.2.3", "1"; missing parts and x/* match anything. */
-export function inPin(version: string, pin: string) {
+/** Does `version` match the manifest's `studio` range? x-ranges only: "1.x", "1.2.x", "1.2.3", "1"; missing parts and x/* match anything. */
+export function satisfiesVersion(version: string, range: string) {
   const v = version.split('-')[0].split('.');
-  return pin
+  return range
     .trim()
     .split('.')
     .every((part, i) => ['x', 'X', '*'].includes(part) || part === v[i]);
@@ -42,7 +43,12 @@ export function loadManifest(root: string): Manifest {
   } catch (err) {
     throw new Error(`studio.json is not valid JSON: ${(err as Error).message}`);
   }
-  if (validate(manifest)) return manifest as Manifest;
+  if (validate(manifest)) {
+    const { feedback } = manifest as Manifest;
+    if (feedback !== undefined && !inside(root, feedback))
+      throw new Error(`studio.json is invalid:\n  section "feedback" is malformed: "${feedback}" is outside the Game Project`);
+    return manifest as Manifest;
+  }
 
   const bySection = new Map<string, string>();
   for (const e of validate.errors ?? []) {

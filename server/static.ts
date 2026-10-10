@@ -1,6 +1,6 @@
 // Serves files from a folder, never outside it.
 import { createReadStream, statSync } from 'node:fs';
-import { join, resolve, sep, extname } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep, extname } from 'node:path';
 import type { ServerResponse } from 'node:http';
 
 const types: Record<string, string> = {
@@ -32,12 +32,20 @@ export function send(res: ServerResponse, status: number, body: string, type = '
   res.writeHead(status, { 'content-type': type }).end(body);
 }
 
+export const json = (res: ServerResponse, body: unknown, status = 200) => send(res, status, JSON.stringify(body, null, 2), 'application/json; charset=utf-8');
+
+/** Is `path` (relative to `root`, or absolute) strictly below `root`? */
+export function inside(root: string, path: string) {
+  const rel = relative(resolve(root), resolve(root, path));
+  return rel !== '' && rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel);
+}
+
 /** `urlPath` is the decoded path below `dir`; `..` escapes and missing files are a 404.
  *  A single-span `range` header (`bytes=a-b`, `a-`, `-n`) gets a 206, so video can seek. */
 export function serveFile(res: ServerResponse, dir: string, urlPath: string, range?: string) {
   const base = resolve(dir);
   let file = resolve(join(base, urlPath));
-  if (file !== base && !file.startsWith(base + sep)) return send(res, 404, 'Not found');
+  if (file !== base && !inside(base, file)) return send(res, 404, 'Not found');
   try {
     if (statSync(file).isDirectory()) file = join(file, 'index.html');
     const { size } = statSync(file);

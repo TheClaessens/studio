@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startStudio, runStudio, tempProject, fixture } from './harness.ts';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { startStudio, runStudio, tempProject, fixture, rawRequest } from './harness.ts';
 
 test('a code-free static-only Game Project boots and its files are served at /', async (t) => {
   const studio = await startStudio(fixture('static-only'));
@@ -54,13 +56,13 @@ test('the six Surfaces are listed; an absent section is "not set up" with an exa
 
   const res = await fetch(`${studio.url}/__studio/surfaces`);
   assert.equal(res.status, 200);
-  const surfaces: { name: string; section: string; setUp: boolean; config?: unknown; example?: unknown }[] = await res.json();
+  const surfaces: { name: string; section: string; setUp: boolean; value?: unknown; example?: unknown }[] = await res.json();
   assert.deepEqual(
     surfaces.map((s) => [s.name, s.setUp]),
     [['Assets', false], ['Feedback', false], ['Play', false], ['Playtests', true], ['Media', true], ['Docs', true]],
   );
   const byName = Object.fromEntries(surfaces.map((s) => [s.name, s]));
-  assert.deepEqual(byName.Docs.config, ['README.md', 'docs/**/*.md']);
+  assert.deepEqual(byName.Docs.value, ['README.md', 'docs/**/*.md']);
   assert.equal(byName.Docs.example, undefined);
   assert.equal(byName.Assets.section, 'assets');
   assert.ok((byName.Assets.example as { catalogue: string }).catalogue, 'Assets example has a catalogue');
@@ -91,6 +93,44 @@ test('a Studio version inside the pin does not warn', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);
   assert.doesNotMatch(studio.stderr(), /warning/i);
+});
+
+test('a feedback folder outside the Game Project fails loudly, naming the section', async () => {
+  const { code, output } = await runStudio(tempProject({ 'studio.json': { studio: '1.x', name: 'Escape', feedback: '../x' } }));
+  assert.notEqual(code, 0);
+  assert.match(output, /"feedback"/);
+  assert.match(output, /outside the Game Project/);
+});
+
+test('a request whose Host is not localhost is refused (DNS rebinding)', async (t) => {
+  const studio = await startStudio(fixture('static-only'));
+  t.after(studio.stop);
+
+  assert.equal(await rawRequest(`${studio.url}/docs/design.md`, { headers: { host: 'evil.example' } }), 403);
+  assert.equal(await rawRequest(`${studio.url}/__studio/surfaces`, { headers: { host: 'evil.example:80' } }), 403);
+  const port = new URL(studio.url).port;
+  for (const host of [`localhost:${port}`, `127.0.0.1:${port}`]) {
+    assert.equal(await rawRequest(`${studio.url}/docs/design.md`, { headers: { host } }), 200, host);
+  }
+});
+
+test('a Studio write from another origin, or a POST that is not JSON, is refused (CSRF)', async (t) => {
+  const dir = tempProject({ 'studio.json': { studio: '1.x', name: 'Csrf', docs: ['A.md'], out: { promo: 'promo/out' } }, 'A.md': '# A' });
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+  const body = JSON.stringify({ remark: 'x', pin: { kind: 'doc', path: 'A.md', label: 'A' } });
+  const feedback = `${studio.url}/__studio/feedback`;
+  const put = `${studio.url}/__studio/out/promo/a.mp4`;
+
+  assert.equal(await rawRequest(feedback, { method: 'POST', headers: { 'content-type': 'text/plain' }, body }), 415);
+  assert.equal(await rawRequest(feedback, { method: 'POST', body }), 415);
+  assert.equal(await rawRequest(feedback, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://evil.example' }, body }), 403);
+  assert.equal(await rawRequest(put, { method: 'PUT', headers: { origin: 'http://evil.example' }, body: 'x' }), 403);
+  assert.ok(!existsSync(join(dir, 'feedback')));
+  assert.ok(!existsSync(join(dir, 'promo/out')));
+
+  assert.equal(await rawRequest(feedback, { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8', origin: studio.url }, body }), 201);
+  assert.equal(await rawRequest(put, { method: 'PUT', headers: { origin: studio.url }, body: 'x' }), 201);
 });
 
 test('a Game Project without studio.json fails loudly', async () => {

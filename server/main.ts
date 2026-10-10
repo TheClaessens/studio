@@ -3,7 +3,7 @@ import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { createStudioServer } from './app.ts';
 import { readFileSync } from 'node:fs';
-import { loadManifest, inPin, type Manifest } from './manifest.ts';
+import { loadManifest, satisfiesVersion, type Manifest } from './manifest.ts';
 
 if (process.argv[2] === 'check') {
   const { runCheck } = await import('./check.ts');
@@ -24,7 +24,7 @@ try {
   process.exit(1);
 }
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-if (!inPin(version, manifest.studio)) {
+if (!satisfiesVersion(version, manifest.studio)) {
   console.error(
     `\n!!! WARNING: this Studio is version ${version}, outside the pin "${manifest.studio}" in studio.json.\n` +
       `!!! Things may break. Run the pinned version: npx github:TheClaessens/studio#<tag> ${positionals[0] ?? '.'}\n`,

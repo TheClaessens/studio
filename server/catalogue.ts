@@ -1,8 +1,9 @@
 // The asset catalogue: a `.json` file, or a `.js` module whose default export returns the list (possibly async).
 // The server `import()`s the module by file URL, so it runs in Node, never in the Studio's bundle.
 import { readFile } from 'node:fs/promises';
-import { resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { inside } from './static.ts';
 
 export type Anchor = { name: string; range?: [number, number] };
 /** `set` overrides `group` in the view template, for assets that resolve differently (e.g. heroes). */
@@ -12,7 +13,7 @@ export type Asset = { id: string; name: string; group: string; set?: string; anc
 export async function loadCatalogue(root: string, path: string, view?: string): Promise<Asset[]> {
   const base = resolve(root);
   const file = resolve(base, path);
-  if (!file.startsWith(base + sep)) throw new Error(`assets.catalogue "${path}" is outside the Game Project`);
+  if (!inside(base, file)) throw new Error(`assets.catalogue "${path}" is outside the Game Project`);
   let list: unknown;
   if (file.endsWith('.json')) {
     list = JSON.parse(await readFile(file, 'utf8'));
@@ -30,7 +31,7 @@ export async function loadCatalogue(root: string, path: string, view?: string): 
  * An unnamed clip is `animation_<i>`, as three.js's GLTFLoader names it. */
 async function clips(base: string, path: string): Promise<Anchor[]> {
   const file = resolve(base, path);
-  if (!file.startsWith(base + sep)) throw new Error(`asset file "${path}" is outside the Game Project`);
+  if (!inside(base, file)) throw new Error(`asset file "${path}" is outside the Game Project`);
   const bytes = await readFile(file);
   // .glb: 12-byte header, then the JSON chunk (length at 12, type at 16, data from 20).
   const gltf = JSON.parse(bytes.readUInt32LE(0) === 0x46546c67 ? bytes.toString('utf8', 20, 20 + bytes.readUInt32LE(12)) : bytes.toString('utf8'));

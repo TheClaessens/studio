@@ -2,6 +2,7 @@
 // Route: `#Media/<path>`, `#Media/<path>#t=<seconds>` or `#Media/<path>#region=<x>,<y>,<w>,<h>` (normalised 0..1).
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { PinForm } from './feedback.tsx';
+import { routeHref, splitRoute } from './hash.ts';
 
 type Region = { x: number; y: number; w: number; h: number };
 export type MediaAnchor = { t?: number; region?: Region };
@@ -12,7 +13,7 @@ const name = (path: string) => path.split('/').at(-1)!;
 const clock = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 
 export const mediaHref = (path: string, { t, region }: MediaAnchor = {}) =>
-  `#Media/${encodeURI(path)}${typeof t === 'number' ? `#t=${t}` : region ? `#region=${[region.x, region.y, region.w, region.h].join(',')}` : ''}`;
+  routeHref('Media', path, typeof t === 'number' ? `t=${t}` : region ? `region=${[region.x, region.y, region.w, region.h].join(',')}` : undefined);
 
 function parseAnchor(anchor = ''): MediaAnchor {
   const [key, value = ''] = anchor.split('=');
@@ -24,7 +25,7 @@ function parseAnchor(anchor = ''): MediaAnchor {
 export function Media({ route }: { route: string }) {
   const [files, setFiles] = useState<string[]>();
   useEffect(() => void fetch('/__studio/media').then((r) => r.json()).then(setFiles), []);
-  const [path, anchor] = route.split('#');
+  const [path, anchor] = splitRoute(route);
   if (!files) return null;
 
   const groups = Map.groupBy(files, (f) => f.split('/').slice(0, -1).join('/'));

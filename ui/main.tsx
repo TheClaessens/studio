@@ -7,10 +7,10 @@ import { Feedback } from './feedback.tsx';
 import { Playtests } from './playtests.tsx';
 import { Play } from './play.tsx';
 
-type Surface = { name: string; section: string; setUp: boolean; config?: unknown; example?: unknown };
+type Surface = { name: string; section: string; setUp: boolean; value?: unknown; example?: unknown };
 
-// `#<Surface>/<surface route>`
-const current = () => decodeURIComponent(location.hash.slice(1));
+// `#<Surface>/<surface route>`; the route stays encoded for the Surface to decode (see hash.ts).
+const current = () => location.hash.slice(1);
 
 function Studio() {
   const [surfaces, setSurfaces] = useState<Surface[]>([]);
@@ -52,15 +52,15 @@ function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
       </section>
     );
   }
-  if (surface.name === 'Assets') return <Workbench assets={surface.config as { catalogue: string; view: string }} />;
+  if (surface.name === 'Assets') return <Workbench assets={surface.value as { catalogue: string; view: string }} />;
   if (surface.name === 'Docs') return <Docs route={route} />;
   if (surface.name === 'Playtests') return <Playtests route={route} />;
-  if (surface.name === 'Play') return <Play play={surface.config as { entry: string; hooks?: string }} />;
+  if (surface.name === 'Play') return <Play play={surface.value as { entry: string; hooks?: string }} />;
   if (surface.name === 'Media') return <Media route={route} />;
   return (
     <section>
       <h2>{surface.name}</h2>
-      <pre>{JSON.stringify({ [surface.section]: surface.config }, null, 2)}</pre>
+      <pre>{JSON.stringify({ [surface.section]: surface.value }, null, 2)}</pre>
     </section>
   );
 }

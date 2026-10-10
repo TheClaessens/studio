@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startStudio, tempProject } from './harness.ts';
+import { startStudio, tempProject, postJson } from './harness.ts';
 
 const video = Buffer.from('0123456789abcdefghij').toString(); // 20 bytes standing in for an mp4
 const project = () =>
@@ -78,7 +78,7 @@ test('files are served with byte ranges so videos can seek', async (t) => {
 const png = `data:image/png;base64,${Buffer.from('frame').toString('base64')}`;
 
 async function pin(url: string, pin: Record<string, unknown>) {
-  const res = await fetch(`${url}/__studio/feedback`, { method: 'POST', body: JSON.stringify({ remark: 'Look here', pin, attachments: { screenshot: png } }) });
+  const res = await postJson(`${url}/__studio/feedback`, { remark: 'Look here', pin, attachments: { screenshot: png } });
   assert.equal(res.status, 201);
   return res.json();
 }

@@ -6,7 +6,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { posix } from 'node:path';
 import { globFiles } from './globs.ts';
-import { send, serveFile } from './static.ts';
+import { json, send, serveFile } from './static.ts';
 import type { Studio } from './app.ts';
 
 export type PlaytestFile = { path: string; markdown: boolean };
@@ -40,7 +40,7 @@ function rounds(studio: Studio) {
 }
 
 export function playtestsRoute(_req: IncomingMessage, res: ServerResponse, rest: string, studio: Studio) {
-  if (!rest || rest === '/') return send(res, 200, JSON.stringify(rounds(studio), null, 2), 'application/json; charset=utf-8');
+  if (!rest || rest === '/') return json(res, rounds(studio));
   if (!playtestFiles(studio).includes(rest.slice(1))) return send(res, 404, 'Not found');
   serveFile(res, studio.root, rest);
 }

@@ -1,5 +1,6 @@
 // Seam-1 harness: run `studio <dir>` as a child process and talk to it over HTTP.
 import { spawn } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -47,4 +48,17 @@ export function tempProject(files: Record<string, unknown>) {
     writeFileSync(join(dir, path), typeof body === 'string' ? body : JSON.stringify(body));
   }
   return dir;
+}
+
+/** POSTs JSON as the Studio UI does. A string body is sent as-is (for malformed-JSON cases). */
+export const postJson = (url: string, body: unknown) =>
+  fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) });
+
+/** A raw HTTP request, so tests can send the headers a browser would (Host, Origin) that fetch won't let you set. */
+export function rawRequest(url: string, { method = 'GET', headers = {}, body }: { method?: string; headers?: Record<string, string>; body?: string } = {}) {
+  return new Promise<number>((resolve, reject) => {
+    const req = httpRequest(url, { method, headers }, (res) => (res.resume(), resolve(res.statusCode!)));
+    req.on('error', reject);
+    req.end(body);
+  });
 }

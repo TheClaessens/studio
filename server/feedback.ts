@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { send, serveFile } from './static.ts';
+import { json, send, serveFile } from './static.ts';
 import { globFiles } from './globs.ts';
 import { headingAnchors } from './slug.ts';
 import { loadCatalogue, type Asset } from './catalogue.ts';
@@ -23,20 +23,40 @@ export type Pin = { kind: string; label: string; path?: string; id?: string; anc
 export type Status = 'open' | 'addressed' | 'closed';
 export type Item = { name: string; status: Status; pin: Pin; author: string; created: string; body: string; resolved: boolean };
 
-/** Per Pin kind: does the Pin still point at something? A kind with no resolver never resolves. Later Pin kinds add theirs. */
-export const resolvers: Record<string, (pin: Pin, studio: Studio) => boolean | Promise<boolean>> = {
-  doc: (pin, { root, manifest }) =>
-    !!pin.path &&
-    globFiles(root, manifest.docs).includes(pin.path) &&
-    (!pin.anchor || headingAnchors(readFileSync(join(root, pin.path), 'utf8')).includes(pin.anchor)),
-  asset: async (pin, studio) => (await catalogue(studio)).some((a) => a.id === pin.id),
-  playtest: (pin, studio) =>
-    !!pin.path &&
-    playtestFiles(studio).includes(pin.path) &&
-    (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)),
-  media: (pin, { root, manifest }) => !!pin.path && globFiles(root, manifest.media).includes(pin.path),
-  play: (pin, { manifest }) => !!pin.path && pin.path === manifest.play?.entry,
+type Attachments = Record<string, unknown>;
+/** Per Pin kind: `validate` returns an error for a malformed create; `resolve` says whether the Pin still points at
+ *  something. An unknown kind is accepted and never resolves. New Pin kinds add an entry here (and `pinHref` in the UI). */
+export const pinKinds: Record<string, { validate?: (pin: Pin, attachments: Attachments) => string | undefined; resolve: (pin: Pin, studio: Studio) => boolean | Promise<boolean> }> = {
+  doc: {
+    resolve: (pin, { root, manifest }) =>
+      !!pin.path &&
+      globFiles(root, manifest.docs).includes(pin.path) &&
+      (!pin.anchor || headingAnchors(readFileSync(join(root, pin.path), 'utf8')).includes(pin.anchor)),
+  },
+  asset: {
+    validate: (pin, attachments) =>
+      typeof pin.id !== 'string' || (pin.anchor !== undefined && typeof pin.anchor !== 'string') || (pin.t !== undefined && (typeof pin.t !== 'number' || pin.anchor === undefined))
+        ? 'An asset pin is an id, optionally an anchor, and a numeric t only with an anchor.'
+        : !attachments.screenshot ? 'An asset pin needs a screenshot.' : undefined,
+    resolve: async (pin, studio) => (await catalogue(studio)).some((a) => a.id === pin.id),
+  },
+  playtest: {
+    resolve: (pin, studio) =>
+      !!pin.path &&
+      playtestFiles(studio).includes(pin.path) &&
+      (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)),
+  },
+  media: { resolve: (pin, { root, manifest }) => !!pin.path && globFiles(root, manifest.media).includes(pin.path) },
+  play: {
+    validate: (pin, { screenshot, snapshot }) =>
+      !pin.label.trim() ? 'A play pin needs a label.' :
+      screenshot !== undefined && !/^data:image\//.test(String(screenshot)) ? 'A play pin screenshot is an image.' :
+      snapshot !== undefined && !/^data:application\/json;/.test(String(snapshot)) ? 'A play pin snapshot is JSON.' :
+      undefined,
+    resolve: (pin, { manifest }) => !!pin.path && pin.path === manifest.play?.entry,
+  },
 };
+const kindOf = (pin: Pin) => (Object.hasOwn(pinKinds, pin.kind) ? pinKinds[pin.kind] : undefined);
 
 /** The catalogue, loaded once per `studio` object, which feedbackRoute makes fresh for each request. */
 const catalogues = new WeakMap<Studio, Promise<Asset[]>>();
@@ -52,14 +72,13 @@ const attachmentTypes: Record<string, string> = {
 };
 
 const folder = ({ root, manifest }: Studio) => resolve(root, manifest.feedback ?? 'feedback');
-const json = (res: ServerResponse, status: number, body: unknown) => send(res, status, JSON.stringify(body, null, 2), 'application/json; charset=utf-8');
 
 export async function feedbackRoute(req: IncomingMessage, res: ServerResponse, rest: string, shared: Studio) {
   const studio = { ...shared }; // per request, so resolvers' caches (the catalogue) live for one request
   const dir = folder(studio);
   if (!rest || rest === '/') {
     if (req.method === 'POST') return createItem(req, res, dir, studio);
-    return json(res, 200, await listItems(dir, studio));
+    return json(res, await listItems(dir, studio));
   }
   const parts = rest.slice(1).split('/');
   if (req.method === 'GET' && parts.length === 1) return serveFile(res, dir, rest);
@@ -83,7 +102,7 @@ export async function feedbackRoute(req: IncomingMessage, res: ServerResponse, r
     text = setStatus(text, 'open').replace(/\s*$/, `\n\n---\n\n${remark}\n`);
   } else return send(res, 404, 'Not found');
   writeFileSync(join(dir, `${name}.md`), text);
-  json(res, 200, await toItem(name, text, studio));
+  json(res, await toItem(name, text, studio));
 }
 
 function listItems(dir: string, studio: Studio): Promise<Item[]> {
@@ -100,7 +119,7 @@ async function toItem(name: string, text: string, studio: Studio): Promise<Item>
   const { status, pin, author, created, body } = parse(text);
   let resolved = false;
   try {
-    resolved = Object.hasOwn(resolvers, pin.kind) && (await resolvers[pin.kind](pin, studio));
+    resolved = !!(await kindOf(pin)?.resolve(pin, studio));
   } catch {}
   return { name, status, pin, author, created, body, resolved };
 }
@@ -136,7 +155,7 @@ async function createItem(req: IncomingMessage, res: ServerResponse, dir: string
       throw err;
     }
     for (const [, ext, data] of files) writeFileSync(join(dir, `${name}.${ext}`), data);
-    return json(res, 201, await toItem(name, text, studio));
+    return json(res, await toItem(name, text, studio), 201);
   }
 }
 
@@ -151,18 +170,12 @@ function invalid(body: any) {
   if (pin.path !== undefined && (typeof pin.path !== 'string' || /^[/\\]|^[a-z]:|\\/i.test(pin.path) || pin.path.split('/').includes('..')))
     return 'A pin path is relative to the Game Project, without "..".';
   if (body.attachments !== undefined && (typeof body.attachments !== 'object' || Array.isArray(body.attachments))) return 'Attachments are { field: dataUrl }.';
-  if (pin.kind === 'asset') {
-    if (typeof pin.id !== 'string' || (pin.anchor !== undefined && typeof pin.anchor !== 'string') || (pin.t !== undefined && (typeof pin.t !== 'number' || pin.anchor === undefined)))
-      return 'An asset pin is an id, optionally an anchor, and a numeric t only with an anchor.';
-    if (!body.attachments?.screenshot) return 'An asset pin needs a screenshot.';
-  }
-  if (pin.kind === 'play') {
-    if (!pin.label.trim()) return 'A play pin needs a label.';
-    const { screenshot, snapshot } = body.attachments ?? {};
-    if (screenshot !== undefined && !/^data:image\//.test(screenshot)) return 'A play pin screenshot is an image.';
-    if (snapshot !== undefined && !/^data:application\/json;/.test(snapshot)) return 'A play pin snapshot is JSON.';
-  }
+  const attachments: Attachments = body.attachments ?? {};
+  const clash = Object.keys(attachments).find((field) => Object.hasOwn(pin, field) || pinFields.includes(field));
+  if (clash) return `Attachment "${clash}" would overwrite a Pin field.`;
+  return kindOf(pin)?.validate?.(pin, attachments);
 }
+const pinFields = ['kind', 'label', 'path', 'id', 'anchor'];
 
 /** Reads the frontmatter this module writes: flat `key: value` lines plus the indented `pin:` map.
  *  Values are JSON (which is valid YAML), or plain YAML scalars as an agent may write them. */

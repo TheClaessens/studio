@@ -2,24 +2,26 @@
 import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
 import { mediaHref, type MediaAnchor } from './media.tsx';
+import { routeHref } from './hash.ts';
+import type { Pin, Item } from '../server/feedback.ts';
+export type { Pin, Item };
 
-export type Pin = { kind: string; label: string; path?: string; id?: string; anchor?: string; [field: string]: unknown };
-export type Item = { name: string; status: 'open' | 'addressed' | 'closed'; pin: Pin; author: string; created: string; body: string; resolved: boolean };
+const postJson = (url: string, body: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 export const listFeedback = (): Promise<Item[]> => fetch('/__studio/feedback').then((r) => r.json());
 
 /** Creates an item; `attachments` are `{ field: dataUrl }`, saved beside it and referenced from the Pin. */
 export async function createFeedback(remark: string, pin: Pin, attachments?: Record<string, string>): Promise<Item> {
-  const res = await fetch('/__studio/feedback', { method: 'POST', body: JSON.stringify({ remark, pin, attachments }) });
+  const res = await postJson('/__studio/feedback', { remark, pin, attachments });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 /** Where go-to-pin jumps, per Pin kind. Later Pin kinds add theirs. */
 export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
-  doc: (pin) => `#Docs/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  doc: (pin) => routeHref('Docs', pin.path ?? '', pin.anchor),
   asset: (pin) => `#Assets/${new URLSearchParams(Object.entries({ id: pin.id, anchor: pin.anchor, t: pin.t }).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`,
-  playtest: (pin) => `#Playtests/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  playtest: (pin) => routeHref('Playtests', pin.path ?? '', pin.anchor),
   media: (pin) => mediaHref(pin.path ?? '', pin as MediaAnchor),
   play: () => '#Play',
 };
@@ -54,7 +56,7 @@ export function PinForm({ pin, attachments, attach, onCreated }: { pin: Pin; att
 export function Card({ item, onChange }: { item: Item; onChange: () => void }) {
   const [remark, setRemark] = useState('');
   const act = async (action: string, body: object = {}) => {
-    const res = await fetch(`/__studio/feedback/${item.name}/${action}`, { method: 'POST', body: JSON.stringify(body) });
+    const res = await postJson(`/__studio/feedback/${item.name}/${action}`, body);
     if (!res.ok) return alert(await res.text());
     setRemark('');
     onChange();

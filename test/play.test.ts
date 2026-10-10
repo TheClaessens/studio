@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { startStudio, tempProject } from './harness.ts';
+import { startStudio, tempProject, postJson } from './harness.ts';
 
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
 const image = `data:image/png;base64,${png.toString('base64')}`;
 const json = (v: unknown) => `data:application/json;base64,${Buffer.from(JSON.stringify(v)).toString('base64')}`;
 const create = (url: string, remark: string, pin: object, attachments?: object) =>
-  fetch(`${url}/__studio/feedback`, { method: 'POST', body: JSON.stringify({ remark, pin, attachments }) });
+  postJson(`${url}/__studio/feedback`, { remark, pin, attachments });
 const list = async (url: string) => (await fetch(`${url}/__studio/feedback`)).json();
 const game = (play: object) =>
   tempProject({
@@ -22,7 +22,7 @@ test('a same-origin play.entry and its hooks module are served by the Studio', a
   const studio = await startStudio(game(play));
   t.after(studio.stop);
   const surfaces = await (await fetch(`${studio.url}/__studio/surfaces`)).json();
-  assert.deepEqual(surfaces.find((s: any) => s.name === 'Play').config, play);
+  assert.deepEqual(surfaces.find((s: any) => s.name === 'Play').value, play);
   assert.equal(await (await fetch(`${studio.url}/index.html`)).text(), '<canvas></canvas>');
   assert.match((await fetch(`${studio.url}/dev/hooks.js`)).headers.get('content-type') ?? '', /javascript/);
 });

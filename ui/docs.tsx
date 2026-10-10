@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
 import { PinForm } from './feedback.tsx';
+import { routeHref, splitRoute } from './hash.ts';
 
 type Tree = { [name: string]: Tree | string };
 
@@ -17,7 +18,7 @@ function toTree(paths: string[]) {
   return root;
 }
 
-const link = (path: string, anchor?: string) => `#Docs/${encodeURI(path)}${anchor ? `#${anchor}` : ''}`;
+const link = (path: string, anchor?: string) => routeHref('Docs', path, anchor);
 
 function TreeView({ tree, selected }: { tree: Tree; selected: string }) {
   return (
@@ -44,7 +45,7 @@ function TreeView({ tree, selected }: { tree: Tree; selected: string }) {
 export function Docs({ route }: { route: string }) {
   const [docs, setDocs] = useState<string[]>([]);
   const [text, setText] = useState<string>();
-  const [path, anchor] = route.split('#');
+  const [path, anchor] = splitRoute(route);
   const selected = path || docs[0];
 
   useEffect(() => {
