@@ -1,6 +1,7 @@
 // The Feedback Surface: a triage inbox across all Surfaces, plus the shared bits other Surfaces pin with.
 import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
+import { mediaHref, type MediaAnchor } from './media.tsx';
 
 export type Pin = { kind: string; label: string; path?: string; id?: string; anchor?: string; [field: string]: unknown };
 export type Item = { name: string; status: 'open' | 'addressed' | 'closed'; pin: Pin; author: string; created: string; body: string; resolved: boolean };
@@ -17,17 +18,19 @@ export async function createFeedback(remark: string, pin: Pin, attachments?: Rec
 /** Where go-to-pin jumps, per Pin kind. Later Pin kinds add theirs. */
 export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
   doc: (pin) => `#Docs/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  playtest: (pin) => `#Playtests/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  media: (pin) => mediaHref(pin.path ?? '', pin as MediaAnchor),
 };
 
 const noLink = () => '';
 
 /** The new-feedback form other Surfaces drop beside what is being pinned. */
-export function PinForm({ pin, onCreated }: { pin: Pin; onCreated?: (item: Item) => void }) {
+export function PinForm({ pin, attachments, onCreated }: { pin: Pin; attachments?: Record<string, string>; onCreated?: (item: Item) => void }) {
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
   const submit = async () => {
     try {
-      const item = await createFeedback(remark, pin);
+      const item = await createFeedback(remark, pin, attachments);
       setRemark('');
       setNote(`Saved ${item.name}.md`);
       onCreated?.(item);
