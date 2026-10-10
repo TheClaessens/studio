@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import './assets.css';
 
 type Anchor = { name: string; range?: [number, number] };
-type Asset = { id: string; name: string; group: string; set?: string; anchors: Anchor[] };
+type Asset = { id: string; name: string; group: string; set?: string; anchors: Anchor[]; file?: string };
 export type Pose = { asset: Asset; anchor: Anchor; t: number; playing: boolean };
 
 const start = (asset: Asset): Pose => ({ asset, anchor: asset.anchors[0], t: asset.anchors[0]?.range?.[0] ?? 0, playing: false });
@@ -60,7 +60,11 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
   );
 }
 
-function Stage({ view, pose, setPose }: { view: string; pose: Pose; setPose: (p: Pose) => void }) {
+/** `"gltf"` is the Studio's own view page, driven by the same parameters as a URL template (hash, so no reload). */
+const gltfView = (file: string) => `/__studio/gltf.html#file=${encodeURIComponent(file)}&anchor={anchor}&t={t}&play={play}`;
+
+function Stage({ view: kind, pose, setPose }: { view: string; pose: Pose; setPose: (p: Pose) => void }) {
+  const view = kind === 'gltf' ? gltfView(pose.asset.file!) : kind;
   const [scrub, setScrub] = useState(pose.t);
   useEffect(() => setScrub(pose.t), [pose.t]);
   const { anchor } = pose;
@@ -68,8 +72,7 @@ function Stage({ view, pose, setPose }: { view: string; pose: Pose; setPose: (p:
 
   return (
     <div className="stage">
-      {/* #19 adds the "gltf" view kind as a branch here. */}
-      {view === 'gltf' ? <p className="view">glTF view: not built yet.</p> : <iframe className="view" src={viewUrl(view, pose)} title={pose.asset.name} />}
+      <iframe className="view" src={viewUrl(view, pose)} title={pose.asset.name} />
       <div className="anchors">
         {view.includes('{play}') && (
           <button onClick={() => setPose({ ...pose, playing: !pose.playing })}>{pose.playing ? 'Pause' : 'Play'}</button>

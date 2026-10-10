@@ -30,7 +30,7 @@ const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/schema/studio.json', (_req, res) => json(res, schema)],
   ['/__studio/surfaces', (_req, res, _rest, { manifest }) => json(res, surfaces(manifest))],
   ['/__studio/catalogue', async (_req, res, _rest, { root, manifest }) =>
-    manifest.assets ? json(res, await loadCatalogue(root, manifest.assets.catalogue)) : send(res, 404, 'No assets section in studio.json')],
+    manifest.assets ? json(res, await loadCatalogue(root, manifest.assets.catalogue, manifest.assets.view)) : send(res, 404, 'No assets section in studio.json')],
   ['/__studio/docs', (_req, res, rest, { root, manifest }) => {
     const docs = globFiles(root, manifest.docs);
     if (!rest) return json(res, docs);
