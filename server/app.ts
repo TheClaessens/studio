@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { serveFile, send } from './static.ts';
 import { schema } from './schema.ts';
 import { globFiles } from './globs.ts';
+import { feedbackRoute } from './feedback.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -34,6 +35,7 @@ const routes: [prefix: string, handler: Handler][] = [
     if (!docs.includes(rest.slice(1))) return send(res, 404, 'Not found');
     serveFile(res, root, rest);
   }],
+  ['/__studio/feedback', feedbackRoute],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (_req, res, rest, { root }) => serveFile(res, root, rest)],
 ];

@@ -2,6 +2,7 @@
 // Route: `#Docs/<path>#<heading anchor>`.
 import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
+import { PinForm } from './feedback.tsx';
 
 type Tree = { [name: string]: Tree | string };
 
@@ -53,11 +54,18 @@ export function Docs({ route }: { route: string }) {
     setText(undefined);
     if (selected) fetch(`/__studio/docs/${encodeURI(selected)}`).then((r) => (r.ok ? r.text() : `Not a declared doc: ${selected}`)).then(setText);
   }, [selected]);
+  // A heading Pin quotes the heading as rendered at pin time.
+  const [label, setLabel] = useState<string>();
+  useEffect(() => setLabel(anchor ? document.getElementById(anchor)?.textContent ?? undefined : undefined), [text, anchor]);
 
   return (
     <div className="docs">
       <aside>{docs.length ? <TreeView tree={toTree(docs)} selected={selected} /> : <p>No files match the docs globs.</p>}</aside>
-      {text !== undefined && <Markdown text={text} anchor={anchor} href={(a) => link(selected, a)} />}
+      <div className="doc">
+        {label !== undefined && <PinForm key={`${selected}#${anchor}`} pin={{ kind: 'doc', path: selected, anchor, label }} />}
+        {text !== undefined && <Markdown text={text} anchor={anchor} href={(a) => link(selected, a)} />}
+        {label === undefined && text !== undefined && <p className="dim">Click a heading to pin Feedback to its section.</p>}
+      </div>
     </div>
   );
 }
