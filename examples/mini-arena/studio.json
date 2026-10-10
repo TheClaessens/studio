@@ -1,0 +1,7 @@
+{
+  "$schema": "http://localhost:5170/__studio/schema/studio.json",
+  "studio": "1.x",
+  "name": "Mini Arena",
+  "play": { "entry": "index.html", "adapter": "adapter.js" },
+  "out": { "playtest": "playtest/out" }
+}

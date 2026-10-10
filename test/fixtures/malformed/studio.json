@@ -1,0 +1,6 @@
+{
+  "studio": "1.x",
+  "name": "Malformed",
+  "docs": ["README.md"],
+  "assets": { "catalogue": 42 }
+}

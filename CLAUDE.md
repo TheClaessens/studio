@@ -2,6 +2,12 @@
 
 Read `GLOSSARY.md` before changing anything. The spec is [Studio v1](https://github.com/TheClaessens/studio/issues/12).
 
+Node 26 required: `nvm use` before `npm test`/`npm run check`. `npm run check` (tsc + tests) must pass before a commit.
+
+Adding a Surface, route or Pin kind → `docs/architecture.md`.
+
+Reviewing a change → `CODING_STANDARDS.md`.
+
 ## Agent skills
 
 ### Issue tracker
