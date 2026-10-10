@@ -33,6 +33,11 @@ function Studio() {
   // Feedback that agents addressed and that waits for the human; refreshed on every navigation.
   useEffect(() => void listFeedback().then((items) => setWaiting(items.filter((i) => i.resolved && i.status === 'addressed').length)), [selected]);
   useEffect(() => void (document.title = project ? `${project} · Studio` : 'Studio'), [project]);
+  // Another Surface or file starts at the top; a route with an anchor is scrolled to it by the Surface instead.
+  const place = selected.split('#')[0];
+  useEffect(() => {
+    if (!selected.includes('#')) document.querySelector('.surface')?.scrollTo(0, 0);
+  }, [place]);
 
   const surface = surfaces.find((s) => s.name === selected.split('/')[0]) ?? surfaces[0];
   return (
