@@ -31,7 +31,7 @@ export const pinKinds: Record<string, { validate?: (pin: Pin, attachments: Attac
     resolve: (pin, { root, manifest }) =>
       !!pin.path &&
       globFiles(root, manifest.docs).includes(pin.path) &&
-      (!pin.anchor || headingAnchors(readFileSync(join(root, pin.path), 'utf8')).includes(pin.anchor)),
+      (!pin.anchor || headingAnchors(readFileSync(join(root, pin.path), 'utf8')).includes(pin.anchor)), // guardrail: contained (pin.path is one of globFiles)
   },
   asset: {
     validate: (pin, attachments) =>
@@ -44,7 +44,7 @@ export const pinKinds: Record<string, { validate?: (pin: Pin, attachments: Attac
     resolve: (pin, studio) =>
       !!pin.path &&
       playtestFiles(studio).includes(pin.path) &&
-      (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)),
+      (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)), // guardrail: contained (pin.path is one of playtestFiles)
   },
   media: { resolve: (pin, { root, manifest }) => !!pin.path && globFiles(root, manifest.media).includes(pin.path) },
   play: {
@@ -71,7 +71,7 @@ const attachmentTypes: Record<string, string> = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'application/json': 'json',
 };
 
-const folder = ({ root, manifest }: Studio) => resolve(root, manifest.feedback ?? 'feedback');
+const folder = ({ root, manifest }: Studio) => resolve(root, manifest.feedback ?? 'feedback'); // guardrail: contained (loadManifest checks feedback with inside())
 
 export async function feedbackRoute(req: IncomingMessage, res: ServerResponse, rest: string, shared: Studio) {
   const studio = { ...shared }; // per request, so resolvers' caches (the catalogue) live for one request

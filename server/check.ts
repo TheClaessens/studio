@@ -122,7 +122,7 @@ export async function runCheck(root: string): Promise<number> {
         const value = await run(name, body);
         if (name === 'shot') {
           const folder = manifest.out?.playtest;
-          const file = folder && join(resolve(root, folder), basename(value.file));
+          const file = folder && join(resolve(root, folder), basename(value.file)); // guardrail: contained (read-only existsSync of a shot the out route wrote)
           if (!file || !existsSync(file)) throw new Error(`the shot is not on disk in out.playtest (${folder ?? 'not declared in studio.json'})`);
           console.log(`✓ shot ${join(folder, basename(value.file))}`);
         } else console.log(`✓ ${name}`);
