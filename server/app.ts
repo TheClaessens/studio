@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { fileURLToPath } from 'node:url';
 import { serveFile, send } from './static.ts';
 import { schema } from './schema.ts';
+import { globFiles } from './globs.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -27,6 +28,12 @@ function surfaces(manifest: Manifest) {
 const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/schema/studio.json', (_req, res) => json(res, schema)],
   ['/__studio/surfaces', (_req, res, _rest, { manifest }) => json(res, surfaces(manifest))],
+  ['/__studio/docs', (_req, res, rest, { root, manifest }) => {
+    const docs = globFiles(root, manifest.docs);
+    if (!rest) return json(res, docs);
+    if (!docs.includes(rest.slice(1))) return send(res, 404, 'Not found');
+    serveFile(res, root, rest);
+  }],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (_req, res, rest, { root }) => serveFile(res, root, rest)],
 ];
