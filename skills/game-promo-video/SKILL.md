@@ -13,13 +13,13 @@ Why this approach: screen-recording a live session gives choppy frames, random o
 
 The Studio serves the game and the promo Kit from one origin. The Kit is served, never copied into the project: the promo page imports it from `/__studio/kits/promo/`. You write only the project's promo page, from this skill's `templates/`.
 
-Launch the Studio from the Game Project root, at the version `studio.json` pins (its `"studio"` key, e.g. `1.x`):
+Launch the Studio from the Game Project root, at the version `studio.json` pins: read its `"studio"` key (e.g. `1.x`) and put it in place of `<pin>`:
 
 ```sh
-npx github:TheClaessens/studio#semver:1.x .
+npx github:TheClaessens/studio#semver:<pin> .
 ```
 
-It prints the URL (default `http://localhost:5170`); open `<url>/promo/`. If the session has a preview browser, add that command as the one Studio entry in `.claude/launch.json`. Renders are PUT to the Studio, which writes them to studio.json `out.promo`; add that folder to `media` so the human sees them in the Media Surface:
+It prints the Studio's URL, `http://localhost:<port>/__studio/` (port 5170 unless it is taken). The promo page is a Game Project file, served at the root: open `http://localhost:<port>/promo/`, not under `/__studio/`. If the session has a preview browser, add that command as the one Studio entry in `.claude/launch.json`. Renders are PUT to the Studio, which writes them to studio.json `out.promo`; add that folder to `media` so the human sees them in the Media Surface:
 
 ```json
 "out": { "promo": "promo/out" },
@@ -72,7 +72,7 @@ promo/
   titles.js    ← drawTitles(g, f), CUTS, CUE (soundtrack cue sheet)
   out/         ← renders land here (studio.json out.promo)
 ```
-Start the Studio (`npx github:TheClaessens/studio#semver:<pin> .`) and open `<url>/promo/`.
+Start the Studio (`npx github:TheClaessens/studio#semver:<pin> .`) and open `http://localhost:<port>/promo/` (the root, not the printed `/__studio/` URL).
 
 ### 4. Build shots with the staging API
 Each shot: `{ id, t0, setup(P, shot), step(P, t, shot), speed?(t), dim?(t), filter?(t), zoomPost?(t), cuts?(shot) }`. Keep `setup` fully deterministic: reseed, reset the game, stage, then `warm()` (unrendered simulation) so the shot opens mid-action. `references/staging.md` has recipes for the common pitfalls: enemies dying during warm-up, empty frames, status tints (frozen bosses), number clutter, forcing a boss attack, and slow-motion time ramps synced to a real event.

@@ -55,6 +55,17 @@ test("skill templates load Kits the Studio serves, the promo shims as a classic 
 
 test('skills that need the Studio launch it with npx at the pin from studio.json', () => {
   for (const name of ['game-playtest', 'game-promo-video', 'crazygames-release']) {
-    assert.match(read(`skills/${name}/SKILL.md`), /npx github:TheClaessens\/studio#semver:/, name);
+    assert.match(read(`skills/${name}/SKILL.md`), /npx github:TheClaessens\/studio#semver:<pin>/, name);
+  }
+  for (const name of SKILLS) {
+    for (const f of files(`skills/${name}`)) assert.doesNotMatch(read(f), /#semver:\d/, `${f} hardcodes a version instead of the studio.json pin`);
+  }
+});
+
+test('skills give the URLs the Studio actually prints and serves', () => {
+  const all = SKILLS.flatMap((name) => files(`skills/${name}`)).map((f) => [f, read(f)]);
+  for (const [f, text] of all) {
+    assert.doesNotMatch(text, /default `?http:\/\/localhost:5170`?(?!\/__studio\/)/, `${f}: the Studio prints http://localhost:<port>/__studio/`);
+    assert.doesNotMatch(text, /<url>\/promo\//, `${f}: the promo page is at the root, not under the printed /__studio/ URL`);
   }
 });
