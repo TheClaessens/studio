@@ -1,0 +1,13 @@
+{
+  "name": "studio",
+  "owner": { "name": "Thomas Claessens" },
+  "description": "The Studio repo as a marketplace for its own skills plugin.",
+  "plugins": [
+    {
+      "name": "studio",
+      "source": "./",
+      "description": "Game dev skills for the Studio: playtest, promo video, game design, orchestrated dev, CrazyGames release and Feedback.",
+      "version": "1.0.0"
+    }
+  ]
+}

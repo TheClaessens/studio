@@ -1,6 +1,7 @@
 // The Feedback Surface: a triage inbox across all Surfaces, plus the shared bits other Surfaces pin with.
 import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
+import { mediaHref, type MediaAnchor } from './media.tsx';
 
 export type Pin = { kind: string; label: string; path?: string; id?: string; anchor?: string; [field: string]: unknown };
 export type Item = { name: string; status: 'open' | 'addressed' | 'closed'; pin: Pin; author: string; created: string; body: string; resolved: boolean };
@@ -18,17 +19,19 @@ export async function createFeedback(remark: string, pin: Pin, attachments?: Rec
 export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
   doc: (pin) => `#Docs/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
   asset: (pin) => `#Assets/${new URLSearchParams(Object.entries({ id: pin.id, anchor: pin.anchor, t: pin.t }).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`,
+  playtest: (pin) => `#Playtests/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  media: (pin) => mediaHref(pin.path ?? '', pin as MediaAnchor),
 };
 
 const noLink = () => '';
 
-/** The new-feedback form other Surfaces drop beside what is being pinned. `attach` makes the attachments at pin time (e.g. a screenshot). */
-export function PinForm({ pin, attach, onCreated }: { pin: Pin; attach?: () => Promise<Record<string, string>>; onCreated?: (item: Item) => void }) {
+/** The new-feedback form other Surfaces drop beside what is being pinned. `attach` makes more attachments at pin time (e.g. a screenshot). */
+export function PinForm({ pin, attachments, attach, onCreated }: { pin: Pin; attachments?: Record<string, string>; attach?: () => Promise<Record<string, string>>; onCreated?: (item: Item) => void }) {
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
   const submit = async () => {
     try {
-      const item = await createFeedback(remark, pin, await attach?.());
+      const item = await createFeedback(remark, pin, attach ? { ...attachments, ...(await attach()) } : attachments);
       setRemark('');
       setNote(`Saved ${item.name}.md`);
       onCreated?.(item);

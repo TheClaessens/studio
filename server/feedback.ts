@@ -14,6 +14,7 @@ import { send, serveFile } from './static.ts';
 import { globFiles } from './globs.ts';
 import { headingAnchors } from './slug.ts';
 import { loadCatalogue, type Asset } from './catalogue.ts';
+import { playtestFiles } from './playtests.ts';
 import type { Studio } from './app.ts';
 
 /** What an item points at. `path` is relative to the Game Project, `id` a catalogue id; never a Studio URL.
@@ -29,6 +30,11 @@ export const resolvers: Record<string, (pin: Pin, studio: Studio) => boolean | P
     globFiles(root, manifest.docs).includes(pin.path) &&
     (!pin.anchor || headingAnchors(readFileSync(join(root, pin.path), 'utf8')).includes(pin.anchor)),
   asset: async (pin, studio) => (await catalogue(studio)).some((a) => a.id === pin.id),
+  playtest: (pin, studio) =>
+    !!pin.path &&
+    playtestFiles(studio).includes(pin.path) &&
+    (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)),
+  media: (pin, { root, manifest }) => !!pin.path && globFiles(root, manifest.media).includes(pin.path),
 };
 
 /** The catalogue, loaded once per `studio` object, which feedbackRoute makes fresh for each request. */

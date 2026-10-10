@@ -60,6 +60,11 @@ export const schema = {
           description:
             'A same-origin module exporting snapshot(win) and an optional capture(win). The export name `actions` is reserved and not implemented in v1.',
         },
+        adapter: {
+          ...path,
+          description:
+            "The Game Adapter: a same-origin module whose default export is the playtest Kit's PT. `studio check` loads it on `entry` and runs the Kit self-test against it.",
+        },
       },
       examples: [{ entry: 'index.html', hooks: 'dev/studio/hooks.js' }],
     },

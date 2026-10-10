@@ -32,19 +32,26 @@ export function send(res: ServerResponse, status: number, body: string, type = '
   res.writeHead(status, { 'content-type': type }).end(body);
 }
 
-/** `urlPath` is the decoded path below `dir`; `..` escapes and missing files are a 404. */
-export function serveFile(res: ServerResponse, dir: string, urlPath: string) {
+/** `urlPath` is the decoded path below `dir`; `..` escapes and missing files are a 404.
+ *  A single-span `range` header (`bytes=a-b`, `a-`, `-n`) gets a 206, so video can seek. */
+export function serveFile(res: ServerResponse, dir: string, urlPath: string, range?: string) {
   const base = resolve(dir);
   let file = resolve(join(base, urlPath));
   if (file !== base && !file.startsWith(base + sep)) return send(res, 404, 'Not found');
   try {
     if (statSync(file).isDirectory()) file = join(file, 'index.html');
     const { size } = statSync(file);
-    res.writeHead(200, {
-      'content-type': types[extname(file).toLowerCase()] ?? 'application/octet-stream',
-      'content-length': size,
-    });
-    createReadStream(file).pipe(res);
+    const headers = { 'content-type': types[extname(file).toLowerCase()] ?? 'application/octet-stream', 'accept-ranges': 'bytes' };
+    const m = range?.match(/^bytes=(\d*)-(\d*)$/);
+    if (!m || (!m[1] && !m[2])) {
+      res.writeHead(200, { ...headers, 'content-length': size });
+      return createReadStream(file).pipe(res);
+    }
+    const start = m[1] ? +m[1] : Math.max(0, size - +m[2]);
+    const end = m[1] && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+    if (start > end) return res.writeHead(416, { 'content-range': `bytes */${size}` }).end();
+    res.writeHead(206, { ...headers, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${size}` });
+    createReadStream(file, { start, end }).pipe(res);
   } catch {
     send(res, 404, 'Not found');
   }

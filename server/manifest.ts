@@ -8,7 +8,7 @@ export type Manifest = {
   studio: string;
   name: string;
   assets?: { catalogue: string; view: string; capture?: string };
-  play?: { entry: string; hooks?: string };
+  play?: { entry: string; hooks?: string; adapter?: string };
   playtests?: string;
   media?: string | string[];
   docs?: string | string[];

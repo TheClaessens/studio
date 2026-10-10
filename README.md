@@ -14,6 +14,26 @@ npx github:TheClaessens/studio#<tag> <game-dir>     # or: npm i -g github:TheCla
 
 It validates `<game-dir>/studio.json` (schema at `/__studio/schema/studio.json`) and prints the URL to open. `--port N` picks the port (default 5170, any free one if taken).
 
+`studio check <game-dir>` runs the playtest Kit self-test (`PT.init → start → play → choose → shot → batch`) in headless Chrome, Chromium or Edge (`STUDIO_BROWSER=<executable>` to pick one). It opens `play.entry`, imports the Game Adapter module named by `play.adapter`, saves the shot in `out.playtest`, and exits non-zero naming the step that failed:
+
+```json
+"play": { "entry": "index.html", "adapter": "playtest/adapter.js" },
+"out": { "playtest": "playtest/out" }
+```
+
+## Skills
+
+`skills/` holds six agent skills: `game-playtest`, `game-promo-video`, `game-design`, `orchestrated-game-dev`, `crazygames-release` and `feedback`. Install them as a Claude Code plugin (this repo is its own marketplace):
+
+```
+/plugin marketplace add TheClaessens/studio
+/plugin install studio@studio
+```
+
+or for any agent with `npx skills add TheClaessens/studio`. Skills import Kits from the running Studio (`/__studio/kits/…`) and launch it with `npx github:TheClaessens/studio#semver:<pin> .`, `<pin>` being `studio.json`'s `"studio"`. Starter code a skill hands over (the portal platform layer) is copied into the game, which owns it.
+
+`package.json`, `.claude-plugin/plugin.json` and its `marketplace.json` entry carry one version; bump all three together and tag the release `v<version>` so `#semver:` pins resolve. The npm package leaves `skills/` out: both installers read this git repo.
+
 ## Develop
 
 `npm install` builds the UI (`prepare`); `npm test` runs the seam-1 tests (`test/`), which start `studio <fixture>` and assert over HTTP.
