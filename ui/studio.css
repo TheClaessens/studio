@@ -29,6 +29,19 @@ textarea { width: 100%; resize: vertical; }
 .topbar__surfaces a:hover { color: var(--on-ink-strong); }
 .topbar__surfaces a.off { color: #8f897e; }
 .topbar__surfaces a[aria-current='page'] { color: var(--on-ink-strong); font-weight: 600; box-shadow: inset 0 -3px 0 var(--accent); }
+.topbar__search { margin-left: auto; display: flex; align-items: center; gap: 8px; width: 240px; max-width: 100%; font-size: 13px; color: var(--on-ink-dim); background: var(--ink-raised); border: 1px solid var(--ink-line); border-radius: 10px; padding: 7px 12px; text-align: left; }
+.topbar__search span { flex: 1; }
+.topbar__search:hover:not(:disabled) { border-color: var(--ink-line-strong); color: var(--on-ink); }
+.palette { width: min(640px, calc(100vw - 32px)); max-height: min(560px, calc(100vh - 96px)); margin: 72px auto auto; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--raised); color: var(--ink); box-shadow: 0 24px 64px rgba(29, 27, 23, .25); overflow: hidden; }
+.palette[open] { display: flex; flex-direction: column; }
+.palette::backdrop { background: rgba(20, 19, 16, .45); }
+.palette input { margin: 12px; font-size: 15px; }
+.palette ul { list-style: none; margin: 0; padding: 0 8px 8px; overflow: auto; }
+.palette li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--r-control); cursor: pointer; }
+.palette li[aria-selected='true'] { background: var(--sunken); }
+.palette__kind { width: 64px; flex-shrink: 0; font-size: 11px; font-weight: 600; color: var(--dim); }
+.palette__text { min-width: 0; display: flex; flex-direction: column; }
+.palette__text .dim { font-family: var(--font-mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar__count { font-size: 11px; font-weight: 700; line-height: 1.6; padding: 0 7px; border-radius: var(--r-pill); background: var(--accent); color: var(--on-ink-strong); }
 .surface { flex: 1; min-height: 0; overflow: auto; padding: 32px 40px; }
 .surface > section > h2:first-child { font-size: 34px; margin: 0 0 24px; }

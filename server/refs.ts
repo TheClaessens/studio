@@ -2,7 +2,8 @@
 // references, `(shot: `x.png` · caption: "…" · at: 0.42,0.55)` (K4). One walk over every markdown file the Docs and
 // Playtests Surfaces list, each place keyed by the anchor a Pin would use (the heading, or the finding).
 //
-//   GET /__studio/refs   { links: [{ from, to, href, text }], shots: { <media path>: { takenBy?, usedIn: [Use] } } }
+//   GET /__studio/refs   { places, links: [{ from, to, href, text }], shots: { <media path>: { takenBy?, usedIn: [Use] } } }
+//                        `places`: every file (its title), heading and finding, for the ⌘K palette.
 //                        `from` / `to` are { surface, path, anchor?, label }; a link counts only when it lands on a
 //                        doc or playtest file, a shot only when it resolves to a Media file.
 import { readFileSync } from 'node:fs';
@@ -79,12 +80,15 @@ export function refs(studio: Studio) {
     return named.length === 1 ? named[0] : named.find((m) => m.endsWith(`/${ref}`));
   };
 
-  const out = { links: [] as { from: Place; to: Place; href: string; text: string }[], shots: {} as Record<string, { takenBy?: string; usedIn: Use[] }> };
+  const out = { places: [] as Place[], links: [] as { from: Place; to: Place; href: string; text: string }[], shots: {} as Record<string, { takenBy?: string; usedIn: Use[] }> };
   const anchorLabels = new Map<string, Map<string, string>>(); // path → anchor → label, for link targets
   const walked = [...surfaceOf].map(([path, surface]) => {
     const markdown = readFileSync(join(root, path), 'utf8'); // guardrail: contained (path is one of globFiles / playtestFiles)
     const list = places(markdown, surface === 'Playtests');
-    anchorLabels.set(path, new Map(list.filter((p) => p.anchor).map((p) => [p.anchor!, p.label])));
+    const labels = new Map(list.filter((p) => p.anchor).map((p) => [p.anchor!, p.label]));
+    anchorLabels.set(path, labels);
+    const h1 = markdown.match(/^# +(.+?)\s*#*\s*$/m)?.[1];
+    out.places.push({ surface, path, label: h1 ?? base(path) }, ...[...labels].map(([anchor, label]) => ({ surface, path, anchor, label })));
     return { path, surface, markdown, list };
   });
   for (const { path, surface, markdown, list } of walked) {

@@ -43,6 +43,7 @@ export const loadPanel = () =>
   fetch('/__studio/personas').then((r) => (r.ok ? r.json() : [])).catch(() => []).then((list: Persona[]) => void (panel = new Map(list.map((p) => [p.id, p]))));
 
 export const personaOf = (id: string) => panel.get(id.toLowerCase());
+export const panelIds = () => [...panel.keys()];
 
 /** The look PERSONAS.md gives `id`; a missing `mid`, `tint` or `ink` is mixed from its colour. */
 export function lookFor(id: string): PersonaLook {

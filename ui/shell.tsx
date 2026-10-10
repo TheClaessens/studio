@@ -1,5 +1,6 @@
 // The app shell: the ink top bar every Surface sits under, and the "not set up" state (U4, U12).
 import type { ReactNode } from 'react';
+import { Palette } from './palette.tsx';
 
 export type Surface = { name: string; section: string; setUp: boolean; value?: unknown; example?: unknown };
 
@@ -23,6 +24,7 @@ export function TopBar({ project, surfaces, current, waiting }: { project?: stri
           </a>
         ))}
       </nav>
+      <Palette surfaces={surfaces} />
     </header>
   );
 }

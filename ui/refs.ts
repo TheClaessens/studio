@@ -2,13 +2,13 @@
 // Loaded once per Studio page; every Surface reads the same copy.
 import { useEffect, useState } from 'react';
 import { routeHref } from './hash.ts';
-import type { Place, Use } from '../server/refs.ts';
+import type { Place, Use, refs } from '../server/refs.ts';
 export type { Place, Use };
 
-export type Refs = { links: { from: Place; to: Place; href: string; text: string }[]; shots: Record<string, { takenBy?: string; usedIn: Use[] }> };
+export type Refs = ReturnType<typeof refs>;
 
 let loading: Promise<Refs> | undefined;
-const load = () => (loading ??= fetch('/__studio/refs').then((r) => (r.ok ? r.json() : { links: [], shots: {} })).catch(() => ({ links: [], shots: {} })));
+const load = () => (loading ??= fetch('/__studio/refs').then((r) => (r.ok ? r.json() : { places: [], links: [], shots: {} })).catch(() => ({ places: [], links: [], shots: {} })));
 
 export function useRefs() {
   const [refs, setRefs] = useState<Refs>();
