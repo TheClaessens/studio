@@ -38,6 +38,11 @@ export const schema = {
           description:
             '"gltf" for the Studio\'s own viewer, or a same-origin URL template with {group} {id} {anchor} {t} and an optional {play}.',
         },
+        capture: {
+          ...path,
+          description:
+            'A same-origin module exporting capture(win) → Blob, called with the view iframe\'s window, for viewers that render on demand. Without it the Studio grabs the largest canvas inside requestAnimationFrame. May be the play hooks module.',
+        },
       },
       examples: [
         { catalogue: 'dev/studio/catalogue.json', view: 'dev/viewer.html?set={group}&id={id}&pose={anchor}:{t}&play={play}' },

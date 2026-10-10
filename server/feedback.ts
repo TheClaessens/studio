@@ -13,6 +13,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { send, serveFile } from './static.ts';
 import { globFiles } from './globs.ts';
 import { headingAnchors } from './slug.ts';
+import { loadCatalogue, type Asset } from './catalogue.ts';
 import type { Studio } from './app.ts';
 
 /** What an item points at. `path` is relative to the Game Project, `id` a catalogue id; never a Studio URL.
@@ -22,12 +23,22 @@ export type Status = 'open' | 'addressed' | 'closed';
 export type Item = { name: string; status: Status; pin: Pin; author: string; created: string; body: string; resolved: boolean };
 
 /** Per Pin kind: does the Pin still point at something? A kind with no resolver never resolves. Later Pin kinds add theirs. */
-export const resolvers: Record<string, (pin: Pin, studio: Studio) => boolean> = {
+export const resolvers: Record<string, (pin: Pin, studio: Studio) => boolean | Promise<boolean>> = {
   doc: (pin, { root, manifest }) =>
     !!pin.path &&
     globFiles(root, manifest.docs).includes(pin.path) &&
     (!pin.anchor || headingAnchors(readFileSync(join(root, pin.path), 'utf8')).includes(pin.anchor)),
+  asset: async (pin, studio) => (await catalogue(studio)).some((a) => a.id === pin.id),
 };
+
+/** The catalogue, loaded once per `studio` object, which feedbackRoute makes fresh for each request. */
+const catalogues = new WeakMap<Studio, Promise<Asset[]>>();
+function catalogue(studio: Studio) {
+  const { root, manifest } = studio;
+  if (!manifest.assets) return Promise.resolve([]);
+  if (!catalogues.has(studio)) catalogues.set(studio, loadCatalogue(root, manifest.assets.catalogue, manifest.assets.view));
+  return catalogues.get(studio)!;
+}
 
 const attachmentTypes: Record<string, string> = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'application/json': 'json',
@@ -36,11 +47,12 @@ const attachmentTypes: Record<string, string> = {
 const folder = ({ root, manifest }: Studio) => resolve(root, manifest.feedback ?? 'feedback');
 const json = (res: ServerResponse, status: number, body: unknown) => send(res, status, JSON.stringify(body, null, 2), 'application/json; charset=utf-8');
 
-export async function feedbackRoute(req: IncomingMessage, res: ServerResponse, rest: string, studio: Studio) {
+export async function feedbackRoute(req: IncomingMessage, res: ServerResponse, rest: string, shared: Studio) {
+  const studio = { ...shared }; // per request, so resolvers' caches (the catalogue) live for one request
   const dir = folder(studio);
   if (!rest || rest === '/') {
     if (req.method === 'POST') return createItem(req, res, dir, studio);
-    return json(res, 200, listItems(dir, studio));
+    return json(res, 200, await listItems(dir, studio));
   }
   const parts = rest.slice(1).split('/');
   if (req.method === 'GET' && parts.length === 1) return serveFile(res, dir, rest);
@@ -64,24 +76,24 @@ export async function feedbackRoute(req: IncomingMessage, res: ServerResponse, r
     text = setStatus(text, 'open').replace(/\s*$/, `\n\n---\n\n${remark}\n`);
   } else return send(res, 404, 'Not found');
   writeFileSync(join(dir, `${name}.md`), text);
-  json(res, 200, toItem(name, text, studio));
+  json(res, 200, await toItem(name, text, studio));
 }
 
-function listItems(dir: string, studio: Studio): Item[] {
+function listItems(dir: string, studio: Studio): Promise<Item[]> {
   let files: string[];
   try {
     files = readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
   } catch {
-    return [];
+    return Promise.resolve([]);
   }
-  return files.map((f) => toItem(f.slice(0, -3), readFileSync(join(dir, f), 'utf8'), studio));
+  return Promise.all(files.map((f) => toItem(f.slice(0, -3), readFileSync(join(dir, f), 'utf8'), studio)));
 }
 
-function toItem(name: string, text: string, studio: Studio): Item {
+async function toItem(name: string, text: string, studio: Studio): Promise<Item> {
   const { status, pin, author, created, body } = parse(text);
   let resolved = false;
   try {
-    resolved = Object.hasOwn(resolvers, pin.kind) && resolvers[pin.kind](pin, studio);
+    resolved = Object.hasOwn(resolvers, pin.kind) && (await resolvers[pin.kind](pin, studio));
   } catch {}
   return { name, status, pin, author, created, body, resolved };
 }
@@ -117,7 +129,7 @@ async function createItem(req: IncomingMessage, res: ServerResponse, dir: string
       throw err;
     }
     for (const [, ext, data] of files) writeFileSync(join(dir, `${name}.${ext}`), data);
-    return json(res, 201, toItem(name, text, studio));
+    return json(res, 201, await toItem(name, text, studio));
   }
 }
 
@@ -132,6 +144,11 @@ function invalid(body: any) {
   if (pin.path !== undefined && (typeof pin.path !== 'string' || /^[/\\]|^[a-z]:|\\/i.test(pin.path) || pin.path.split('/').includes('..')))
     return 'A pin path is relative to the Game Project, without "..".';
   if (body.attachments !== undefined && (typeof body.attachments !== 'object' || Array.isArray(body.attachments))) return 'Attachments are { field: dataUrl }.';
+  if (pin.kind === 'asset') {
+    if (typeof pin.id !== 'string' || (pin.anchor !== undefined && typeof pin.anchor !== 'string') || (pin.t !== undefined && (typeof pin.t !== 'number' || pin.anchor === undefined)))
+      return 'An asset pin is an id, optionally an anchor, and a numeric t only with an anchor.';
+    if (!body.attachments?.screenshot) return 'An asset pin needs a screenshot.';
+  }
 }
 
 /** Reads the frontmatter this module writes: flat `key: value` lines plus the indented `pin:` map.

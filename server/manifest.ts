@@ -7,7 +7,7 @@ import { schema } from './schema.ts';
 export type Manifest = {
   studio: string;
   name: string;
-  assets?: { catalogue: string; view: string };
+  assets?: { catalogue: string; view: string; capture?: string };
   play?: { entry: string; hooks?: string };
   playtests?: string;
   media?: string | string[];

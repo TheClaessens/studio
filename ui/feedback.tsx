@@ -17,17 +17,18 @@ export async function createFeedback(remark: string, pin: Pin, attachments?: Rec
 /** Where go-to-pin jumps, per Pin kind. Later Pin kinds add theirs. */
 export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
   doc: (pin) => `#Docs/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  asset: (pin) => `#Assets/${new URLSearchParams(Object.entries({ id: pin.id, anchor: pin.anchor, t: pin.t }).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`,
 };
 
 const noLink = () => '';
 
-/** The new-feedback form other Surfaces drop beside what is being pinned. */
-export function PinForm({ pin, onCreated }: { pin: Pin; onCreated?: (item: Item) => void }) {
+/** The new-feedback form other Surfaces drop beside what is being pinned. `attach` makes the attachments at pin time (e.g. a screenshot). */
+export function PinForm({ pin, attach, onCreated }: { pin: Pin; attach?: () => Promise<Record<string, string>>; onCreated?: (item: Item) => void }) {
   const [remark, setRemark] = useState('');
   const [note, setNote] = useState('');
   const submit = async () => {
     try {
-      const item = await createFeedback(remark, pin);
+      const item = await createFeedback(remark, pin, await attach?.());
       setRemark('');
       setNote(`Saved ${item.name}.md`);
       onCreated?.(item);
@@ -46,7 +47,7 @@ export function PinForm({ pin, onCreated }: { pin: Pin; onCreated?: (item: Item)
   );
 }
 
-function Card({ item, onChange }: { item: Item; onChange: () => void }) {
+export function Card({ item, onChange }: { item: Item; onChange: () => void }) {
   const [remark, setRemark] = useState('');
   const act = async (action: string, body: object = {}) => {
     const res = await fetch(`/__studio/feedback/${item.name}/${action}`, { method: 'POST', body: JSON.stringify(body) });

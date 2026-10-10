@@ -1,5 +1,4 @@
-/* #18 widens this to three columns: 220px 1fr 340px. */
-.workbench { display: grid; grid-template-columns: 220px 1fr; gap: 12px; height: calc(100vh - 48px); }
+.workbench { display: grid; grid-template-columns: 220px 1fr 340px; gap: 12px; height: calc(100vh - 48px); }
 .tree { overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px; }
 .tree h3 { font-size: 12px; text-transform: uppercase; color: var(--dim); margin: 8px 4px 4px; }
 .tree button, .anchors button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text); padding: 4px 8px; border-radius: 4px; cursor: pointer; font: inherit; }
@@ -10,3 +9,8 @@
 .anchors button { display: inline-block; width: auto; border: 1px solid var(--line); }
 .anchors label { display: flex; align-items: center; gap: 8px; color: var(--dim); }
 .error { color: #f66; white-space: pre-wrap; }
+.count { float: right; font-size: 11px; background: var(--line); color: var(--acc); border-radius: 8px; padding: 0 6px; }
+.side { overflow: auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.side h3 { font-size: 12px; text-transform: uppercase; color: var(--dim); margin: 4px; }
+.side img { max-width: 100%; }
+.scopes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
