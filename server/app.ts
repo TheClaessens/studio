@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { serveFile, send } from './static.ts';
 import { schema } from './schema.ts';
 import { loadCatalogue } from './catalogue.ts';
+import { globFiles } from './globs.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -30,6 +31,12 @@ const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/surfaces', (_req, res, _rest, { manifest }) => json(res, surfaces(manifest))],
   ['/__studio/catalogue', async (_req, res, _rest, { root, manifest }) =>
     manifest.assets ? json(res, await loadCatalogue(root, manifest.assets.catalogue)) : send(res, 404, 'No assets section in studio.json')],
+  ['/__studio/docs', (_req, res, rest, { root, manifest }) => {
+    const docs = globFiles(root, manifest.docs);
+    if (!rest) return json(res, docs);
+    if (!docs.includes(rest.slice(1))) return send(res, 404, 'Not found');
+    serveFile(res, root, rest);
+  }],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (_req, res, rest, { root }) => serveFile(res, root, rest)],
 ];

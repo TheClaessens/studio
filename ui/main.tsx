@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Workbench } from './assets.tsx';
+import { Docs } from './docs.tsx';
 
 type Surface = { name: string; section: string; setUp: boolean; config?: unknown; example?: unknown };
 
+// `#<Surface>/<surface route>`
 const current = () => decodeURIComponent(location.hash.slice(1));
 
 function Studio() {
@@ -17,7 +19,7 @@ function Studio() {
     return () => removeEventListener('hashchange', onHash);
   }, []);
 
-  const surface = surfaces.find((s) => s.name === selected) ?? surfaces[0];
+  const surface = surfaces.find((s) => s.name === selected.split('/')[0]) ?? surfaces[0];
   return (
     <div className="studio">
       <nav>
@@ -28,12 +30,12 @@ function Studio() {
           </a>
         ))}
       </nav>
-      <main>{surface && <SurfaceView surface={surface} />}</main>
+      <main>{surface && <SurfaceView surface={surface} route={selected.split('/').slice(1).join('/')} />}</main>
     </div>
   );
 }
 
-function SurfaceView({ surface }: { surface: Surface }) {
+function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
   if (!surface.setUp) {
     return (
       <section>
@@ -46,6 +48,7 @@ function SurfaceView({ surface }: { surface: Surface }) {
     );
   }
   if (surface.name === 'Assets') return <Workbench assets={surface.config as { catalogue: string; view: string }} />;
+  if (surface.name === 'Docs') return <Docs route={route} />;
   return (
     <section>
       <h2>{surface.name}</h2>
