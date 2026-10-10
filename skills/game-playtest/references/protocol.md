@@ -98,7 +98,6 @@ Not verified, worth a quick check: …
 
 ## 4. Top issues (ranked by severity × reach × pillar impact)
 | # | Issue | Sev. | Raised by | Evidence | Recommended change | Effort |
-`Raised by` lists persona ids, comma-separated (`mila, noor, ilse`), so the Studio can show who raised it. `Sev.` is one word: blocker, major, minor or polish.
 Smaller polish: …
 
 ## 5. What to keep (consensus praise)
@@ -117,7 +116,7 @@ Smaller polish: …
 ## Appendix — persona reports
 ```
 
-**Frontmatter.** Keep the block at the top as shown: the Studio reads `kind` to show the file as a synthesis, with severity badges, verdict tags and who raised each issue.
+**Frontmatter.** Keep the block at the top as shown: the Studio reads `kind` to show the file as a synthesis, with severity badges, verdict tags and who raised each issue. In the Top issues table, `Raised by` lists persona ids, comma-separated (`mila, noor, ilse`), and `Sev.` is one word: blocker, major, minor or polish.
 
 **Ranking rule.** Score each issue by three factors:
 - **Severity:** blocker 4, major 3, minor 2, polish 1.

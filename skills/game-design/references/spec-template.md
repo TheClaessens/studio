@@ -6,7 +6,6 @@ Copy this skeleton and fill every `<…>` with real values. An implementer readi
 ---
 kind: design-spec
 version: "<X.Y>"
-status: locked
 ---
 # <GAME> — Game Design v<X.Y> (LOCKED)
 

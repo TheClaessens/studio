@@ -2,7 +2,7 @@
 
 The design for turning the Studio's boilerplate UI into a usable, readable platform, and **every change the codebase needs to get there**. Nothing here is dropped: items that need a decision before they can be built are listed under [Open decisions](#open-decisions), not removed.
 
-Design canvas (private until shared): https://claude.ai/code/artifact/3df46e94-3d54-4eaa-b32b-ed143376635f. Rounds 1–7 on the canvas record how each decision below was reached; the Round 5 component sheet and the Round 6–7 pages are the source of truth for visuals.
+Design canvas (private until shared): https://claude.ai/code/artifact/3df46e94-3d54-4eaa-b32b-ed143376635f. Rounds 1–7 on the canvas record how each decision below was reached; the Round 5 component sheet and the Round 6–7 views are the source of truth for visuals.
 
 Vocabulary follows `GLOSSARY.md` (Surface, Pin, Feedback, Game Project, Kit…). Text in `[brackets]` on the canvas marks a placeholder, not a design decision.
 
@@ -10,8 +10,8 @@ Vocabulary follows `GLOSSARY.md` (Surface, Pin, Feedback, Game Project, Kit…).
 
 | # | Decision | Context |
 |---|---|---|
-| D1 | **Layout C, theme B.** Dark ink top bar (project name, one link per Surface, ⌘K), paper body, Surface-specific left rail, content column, right rail ("On this page", Feedback). | Round 1 explored A Workbench, B Reading Room, C Mission Board. |
-| D2 | **Atomic design.** Tokens → atoms → molecules → organisms → pages; the component sheet is the contract. | Round 5. |
+| D1 | **Layout C, theme B.** Dark ink top bar (project name, one link per Surface, ⌘K), paper body, Surface-specific left rail, content column, right rail ("In this file", Feedback). | Round 1 explored A Workbench, B Reading Room, C Mission Board. |
+| D2 | **Atomic design.** Tokens → atoms → molecules → organisms → views; the component sheet is the contract. | Round 5. |
 | D3 | **Markdown via TanStack Markdown** (`@tanstack/markdown`, React adapter) with Studio extensions that turn known conventions into components. | Replaces `marked`. See [Markdown](#markdown). |
 | D4 | **Files declare their kind in frontmatter.** We own the skills that write playtest files, so recognition is explicit, not guessed. | `kind: playtest-report \| persona-report \| human-session \| round-addendum \| design-spec …` |
 | D5 | **Human testing goes through the same skill and format** as AI personas (`kind: human-session`). Riftbound round 3 already has `00-human.md`. | A human tester gets a distinct mark so they're never mistaken for an AI persona. |
@@ -83,7 +83,7 @@ Extended-library personas need colours and sigils chosen the same way (distinct 
 | body | Geist | 14 / 400 |
 | label | Geist | 12 / 600 |
 | code, paths | Geist Mono | 12 |
-| annotation | Caveat | 24–26 / 600 |
+| shot caption | Caveat (bundled with K4) | 24–26 / 600 |
 
 **Space** 4 8 12 16 20 24 32 40 56. **Radius** 8 control, 12 card, 16 panel, pill; pixel-step for portraits.
 
@@ -91,7 +91,7 @@ Extended-library personas need colours and sigils chosen the same way (distinct 
 
 **Atoms**: button (primary / secondary / ghost / disabled), pin button (empty / with count), segmented control (Rendered / Source; pin scope), filter pill, severity badge, verdict tag, Feedback status chip, tag (evidence, domain, meta), sigil, portrait (32 / 64 / 128, generated or sigil fallback), meter (score bar, hands meter), pending shimmer, Surface link and ⌘K search (on ink), kbd.
 
-**Molecules**: finding (number, title, severity, "raised by" portrait stack, pin), score tiles, callout (info / tip / warning), tension card (side A vs side B by persona, resolution), backlog lanes (Now / Next / Later), pin form, Feedback card (status, pin target, remark, agent resolution, close / reopen), persona card, sidebar rows (file, persona), persona quote (in the persona's voice), annotated shot.
+**Molecules**: finding (number, title, severity, "raised by" portrait stack, pin), score tiles, callout (info / tip / warning), tension card (side A vs side B by persona, resolution), backlog lanes (Now / Next / Later), pin form, Feedback card (status, what it is pinned to, remark, agent resolution, close / reopen), persona card, sidebar rows (file, persona), persona quote (in the persona's voice), captioned shot.
 
 **Organisms**: top bar, Surface left rail (rounds with persona rows; doc tree; catalogue; inbox filters; media folders), right rail (outline, panel, Feedback on this file), persona header (portrait, name, quote, verdict, scores, "How she played"), scorecard, findings explorer, asset stage + transport, play frame, media grid, lightbox.
 
@@ -105,7 +105,7 @@ TanStack Markdown parses once into a serialisable tree; Studio extensions (`tran
 | persona H1 + `Fun: n/10 · Would play again tomorrow: … · Domain score: n/10` | `transformDocument` | persona header: verdict + score tiles |
 | `Severity: blocker\|major\|minor\|polish`; a `Sev.` column | `inlineParser` / table transform | severity badge |
 | `[evidence tag]` (bracket, not a link) | `inlineParser` | evidence tag |
-| `(shot: \`file.png\`)` (+ optional caption, position — K4) | `inlineParser` | shot thumbnail / annotated shot, opens Media |
+| `(shot: \`file.png\`)` (+ optional caption, position — K4) | `inlineParser` | shot thumbnail / captioned shot, opens Media |
 | top-level ordered item with a bold lead | existing finding rule | finding (pinnable, `section/n`) |
 | `> [!NOTE]` etc. | docs extension | callout |
 | table with a `Verdict` column | table transform | verdict tags |
@@ -123,12 +123,12 @@ TanStack Markdown parses once into a serialisable tree; Studio extensions (`tran
 
 **Constraint — Pin anchors must not change.** Existing Pins store anchors from `server/slug.ts`: GitHub-style heading slugs (`-1`, `-2` for repeats) and `heading/n` finding anchors counted over top-level ordered items and numbered table rows. The new renderer must produce exactly these ids (override TanStack's heading ids), or existing Feedback stops resolving. Add a test that renders the fixtures with both and compares anchors.
 
-## Pages
+## Views
 
-| Page | Canvas artboard | Key parts |
+| View | Canvas artboard | Key parts |
 |---|---|---|
 | Playtests · synthesis | `SynthesisPage` | header + stat strip with panel portraits; executive summary findings with verdict tags, persona quotes, "raised by"; scorecard per persona; verified table; tensions; backlog lanes; caveats callout; persona report cards |
-| Playtests · persona report | `PersonaPage` | persona header (128 px portrait + sigil badge, quote, verdict in the persona's voice, scores, "How she played"); pain points with annotated shots and links to the synthesis; her questions answered; session log; findings explorer; panel in the right rail |
+| Playtests · persona report | `PersonaPage` | persona header (128 px portrait + sigil badge, quote, verdict in the persona's voice, scores, "How she played"); pain points with captioned shots and links to the synthesis; her questions answered; session log; findings explorer; panel in the right rail |
 | Docs | `DocsPage` | doc tree with lock for locked specs; spec blocks (above); "Mentioned in playtests" |
 | Feedback inbox | `FeedbackPage` | status + Surface filters; "Waiting for you" as full cards with the agent's resolution; Open as compact rows; Unresolved pins; Closed collapsed |
 | Assets | `AssetsPage` | catalogue with filter and counts; dark stage; animation chips; transport (play, frame step, scrubber, Feedback markers on frames); pin scope (asset / animation / frame) |
@@ -148,7 +148,7 @@ Status today: the data model and every Pin kind already exist; most of the work 
 - **U3** Atoms and molecules as React components (one file each, or one folder per level), matching the component sheet.
 - **U4** App shell: ink top bar with Game Project name (`manifest.name`), one link per Surface from `/__studio/surfaces` (not-set-up Surfaces dimmed), Feedback count badge ("waiting for you").
 - **U5** Rendered / Source toggle on every markdown view (raw text is already fetched).
-- **U6** "On this page" outline from rendered headings.
+- **U6** "In this file" outline from rendered headings.
 - **U7** Feedback counts everywhere a Pin can go: pin buttons on findings and headings, asset tree counts (exist), scrubber markers for frame Pins, media tile counts, top-bar badge. All from `/__studio/feedback`.
 - **U8** Feedback inbox redesign: status groups, filter by Pin kind, cards vs rows, split the agent's `## Resolution` out of the item body (reopens append `---` + remark; render history in order).
 - **U9** Assets: catalogue filter, animation chips, transport with frame step, scope segmented control (logic exists in `NewFeedback`).
@@ -198,7 +198,7 @@ Kept, not dropped; each needs an answer before it is built.
 4. K1, K3 in the skills; S1 extensions for playtest blocks; S7.
 5. K5 + S2, S3, S9 personas and portraits; S8, K6 human sessions.
 6. U9–U11 game-facing Surfaces.
-7. K2, K4 + S4, S5 cross-links, shot index, annotations.
+7. K2, K4 + S4, S5 cross-links, shot index, shot captions.
 8. S6 ⌘K; O1–O5 as decided.
 
 ## Progress
@@ -207,3 +207,4 @@ Kept, not dropped; each needs an answer before it is built.
 - **Step 2 (2026-10-10):** S1 renderer swap. `ui/markdown.tsx` renders with TanStack Markdown (`marked` removed), plus two Studio extensions for what TanStack leaves out: setext headings and indented code. Anchors now come from the server's `headingAnchors`, so every anchor the page offers resolves as a Pin (UI smoke test over a document of edge cases). This fixed one old mismatch: a heading inside a quote used to reset the finding numbering on the page but not on the server. `headingAnchors` now skips a leading frontmatter block (feedback test), ready for K1. Studio blocks (the rest of S1) build on this.
 - **Step 3 (2026-10-10):** U5 Rendered / Source toggle, U6 "In this file" outline and U7 Feedback counts for the reading Surfaces (`ui/reader.tsx`, shared by Docs and Playtests: counts on headings and findings, the file's Feedback in the right rail). U8 Feedback inbox: status groups with counts, filter by Surface, full cards for "waiting for you", unresolved and closed items (remark and `## Resolution` history, close, reopen with a remark), rows for open items, persona portraits on persona-report Pins. U13 for the reader and inbox (rails stack at narrow widths). Still to come under U7: asset scrubber markers (U9) and media tile counts (U11).
 - **Step 4 (2026-10-10):** K1 frontmatter in the skills' templates (`persona-report`, `playtest-report`, `design-spec`), K3 `Raised by` as persona ids and a one-word `Sev.`, the backlog as a `Now / Next / Later` list. S1 Studio blocks for playtest files (`ui/blocks.tsx`, chosen by `kind`): persona header with portrait or sigil, verdict and scores in the persona's voice, `Severity:` badges, verdict tags, "raised by" sigils, scorecard with persona sigils and bars, tension cards, backlog lanes, the findings JSON as a filterable table, callouts. Persona voices and inks in `ui/design/personas.ts`. UI smoke test over a synthesis and a persona report.
+- **Step 5 (2026-10-10):** review fixes. Pin anchors now come from one parser: `server/slug.ts` parses with TanStack Markdown and the Studio extensions (`parseBase`), and `blockAnchors` keys anchors by top-level block index, which the UI reads directly (Studio blocks map `doc.children` 1:1), so the page and the server can no longer disagree; `@tanstack/markdown` is a runtime dependency. Against the old scanner this changes no heading anchor in Riftbound except one with `_` inside inline code (now GitHub's slug), and drops finding anchors the old scanner counted in paragraph text (`N.` lines that can't start a list). The anchors smoke test asserts the exact ids. Inbox: every addressed item waits for you (and counts in the badge) even when its Pin no longer resolves, shown with a second "Pin not found" chip; the badge refreshes after close / reopen; `---` inside a remark no longer splits the thread. Verdict and Raised by cells keep text they don't recognise. Wide tables scroll in their own box. Caveat is not bundled until K4 needs it.

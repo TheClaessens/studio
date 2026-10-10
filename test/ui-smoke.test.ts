@@ -28,7 +28,7 @@ test('the Feedback inbox shows an item created over HTTP', { skip: noBrowser, ti
 });
 
 // Headings and findings in the shapes that trip a renderer up: repeats, inline markup, setext, fenced and indented
-// code, quotes, nested and `)` lists, frontmatter.
+// code, quotes, nested and `)` lists, frontmatter, HTML comments, paragraph-interrupting lists, emoji-only headings.
 const tricky = [
   '---', 'kind: playtest-report', '---',
   '# Title with `code` and **bold**', '', '## Notes', '', '1. **First finding.** text', '2. Second', '',
@@ -36,10 +36,13 @@ const tricky = [
   'Setext Heading', '==============', '', 'Second setext', '-------------', '',
   '### Q&A: [links](x.md), _em_ and ~~gone~~', '', '```', '## fake', '1. fake', '```', '', '    # indented code', '',
   '> ## quoted heading', '> 1. quoted item', '', '- nested', '  1. nested item', '', '3) Paren item', '4) Paren two', '',
+  'Two lines', 'of paragraph', '---', '', '**Bold**', '=====', '', '| a | b |', '|---|---|', '| 1 | x |', '---', '',
+  '<!--', '## Hidden', '-->', '', '````', '```js', '## not', '````', '', '**Next:**', '6. item', '7. item', '',
+  '## 🎮', '', '1. gamer', '', '## After the emoji', '', '1. last', '',
   '## Ünïcödé — dash’s “quotes”', '', '## Trailing hashes ##', '', '#### Notes', '',
 ].join('\n');
 
-test('every anchor the rendered Docs and Playtests pages offer resolves as a Pin', { skip: noBrowser, timeout: 90_000 }, async (t) => {
+test('every anchor the rendered Docs and Playtests Surfaces offer resolves as a Pin', { skip: noBrowser, timeout: 90_000 }, async (t) => {
   const dir = tempProject({
     'studio.json': { studio: '1.x', name: 'Anchors', docs: ['DESIGN.md'], playtests: 'playtest' },
     'DESIGN.md': tricky,
@@ -50,7 +53,7 @@ test('every anchor the rendered Docs and Playtests pages offer resolves as a Pin
   const browser = await openBrowser();
   t.after(browser.close);
 
-  // A distinct query per page, so each open is a full load rather than a same-document hash change.
+  // A distinct query per Surface, so each open is a full load rather than a same-document hash change.
   const ids = async (hash: string) => {
     await browser.open(`${studio.url}/__studio/?${encodeURIComponent(hash)}${hash}`);
     return browser.evaluate(`(async () => {
@@ -62,8 +65,20 @@ test('every anchor the rendered Docs and Playtests pages offer resolves as a Pin
   const docIds: string[] = await ids('#Docs/DESIGN.md');
   const playtestIds: string[] = await ids('#Playtests/playtest/round-1/REPORT.md');
   assert.deepEqual(browser.pageErrors, []);
-  assert.ok(docIds.includes('notes-1') && docIds.includes('setext-heading'), docIds.join(' '));
-  assert.ok(playtestIds.includes('notes/2') && playtestIds.includes('notes-1/2'), playtestIds.join(' '));
+  // Document order, as TanStack Markdown lays the file out: the emoji-only heading has no anchor, `6.` after a paragraph is no finding.
+  const headings = [
+    'title-with-code-and-bold', 'notes', 'notes-1', 'setext-heading', 'second-setext', 'qa-links-em-and-gone', 'after-the-emoji',
+    'ünïcödé--dashs-quotes', 'trailing-hashes', 'notes-2',
+  ];
+  const withFindings = [
+    'title-with-code-and-bold', 'notes', 'notes/1', 'notes/2', 'notes-1', 'notes-1/1', 'notes-1/2', 'setext-heading', 'second-setext',
+    'qa-links-em-and-gone', 'qa-links-em-and-gone/1', 'qa-links-em-and-gone/2', 'qa-links-em-and-gone/3',
+    'after-the-emoji', 'after-the-emoji/1', 'ünïcödé--dashs-quotes', 'trailing-hashes', 'notes-2',
+  ];
+  assert.deepEqual(docIds, headings);
+  const outline: string[] = await browser.evaluate(`[...document.querySelectorAll('nav[aria-label=Outline] a')].map((a) => a.textContent)`);
+  assert.ok(outline.includes('After the emoji'), outline.join(' | ')); // the heading after `## 🎮` is not dropped
+  assert.deepEqual(playtestIds, withFindings);
 
   const pins = [
     ...docIds.map((anchor) => ({ kind: 'doc', path: 'DESIGN.md', anchor, label: anchor })),
@@ -97,13 +112,13 @@ test('playtest files with a kind show the Studio blocks: scores, severity, verdi
       for (const until = Date.now() + 10000; Date.now() < until; await new Promise((r) => setTimeout(r, 100)))
         if (document.querySelector(${JSON.stringify(ready)})) break;
       const m = document.querySelector('.markdown');
-      return { text: m?.innerText ?? '', sev: [...m.querySelectorAll('.sev')].map((e) => e.innerText), verdicts: [...m.querySelectorAll('.verdict')].map((e) => e.innerText), raised: m.querySelectorAll('.raised [role=img]').length };
+      return { text: m?.innerText ?? '', sev: [...m.querySelectorAll('.sev')].map((e) => e.innerText), verdicts: [...m.querySelectorAll('.verdict')].map((e) => e.innerText), raised: [...m.querySelectorAll('.raised [role=img]')].map((e) => e.getAttribute('aria-label')) };
     })()`);
   };
   const synthesis = await look('#Playtests/playtest/round-1/REPORT.md', '.verdict');
   assert.deepEqual(synthesis.verdicts, ['Real bug']);
   assert.deepEqual(synthesis.sev, ['Blocker']);
-  assert.equal(synthesis.raised, 2);
+  assert.deepEqual(synthesis.raised, ['Mila', 'Rhea']);
   assert.doesNotMatch(synthesis.text, /kind: playtest-report/); // frontmatter is data, not text
 
   const persona = await look('#Playtests/playtest/round-1/01-mila.md', '.scores');

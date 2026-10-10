@@ -4,7 +4,6 @@ import '@fontsource-variable/newsreader/opsz.css';
 import '@fontsource-variable/newsreader/opsz-italic.css';
 import '@fontsource-variable/geist/index.css';
 import '@fontsource-variable/geist-mono/index.css';
-import '@fontsource-variable/caveat/index.css';
 import './design/tokens.css';
 import { Workbench } from './assets.tsx';
 import { Docs } from './docs.tsx';
@@ -30,8 +29,9 @@ function Studio() {
     addEventListener('hashchange', onHash);
     return () => removeEventListener('hashchange', onHash);
   }, []);
-  // Feedback that agents addressed and that waits for the human; refreshed on every navigation.
-  useEffect(() => void listFeedback().then((items) => setWaiting(items.filter((i) => i.resolved && i.status === 'addressed').length)), [selected]);
+  // Feedback that agents addressed and that waits for the human; refreshed on every navigation and after inbox changes.
+  const refreshWaiting = () => void listFeedback().then((items) => setWaiting(items.filter((i) => i.status === 'addressed').length));
+  useEffect(refreshWaiting, [selected]);
   useEffect(() => void (document.title = project ? `${project} · Studio` : 'Studio'), [project]);
   // Another Surface or file starts at the top; a route with an anchor is scrolled to it by the Surface instead.
   const place = selected.split('#')[0];
@@ -42,13 +42,13 @@ function Studio() {
   const surface = surfaces.find((s) => s.name === selected.split('/')[0]) ?? surfaces[0];
   return (
     <Shell bar={<TopBar project={project} surfaces={surfaces} current={surface} waiting={waiting} />}>
-      {surface && <SurfaceView surface={surface} route={selected.split('/').slice(1).join('/')} />}
+      {surface && <SurfaceView surface={surface} onFeedback={refreshWaiting} route={selected.split('/').slice(1).join('/')} />}
     </Shell>
   );
 }
 
-function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
-  if (surface.name === 'Feedback') return <Feedback setUp={surface.setUp} />; // absent section: default `feedback/`
+function SurfaceView({ surface, route, onFeedback }: { surface: Surface; route: string; onFeedback: () => void }) {
+  if (surface.name === 'Feedback') return <Feedback setUp={surface.setUp} onChange={onFeedback} />; // absent section: default `feedback/`
   if (!surface.setUp) return <NotSetUp surface={surface} />;
   if (surface.name === 'Assets') return <Workbench assets={surface.value as { catalogue: string; view: string }} />;
   if (surface.name === 'Docs') return <Docs route={route} />;

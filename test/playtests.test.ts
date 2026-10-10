@@ -69,6 +69,17 @@ test('Feedback pinned to a finding is written to disk and resolves by heading or
   for (const [pin, resolved] of pins) assert.equal(items.find((i) => i.pin.label === pin.label)?.resolved, resolved, pin.label);
 });
 
+test('a numbered line that cannot start a list after a paragraph is no finding', async (t) => {
+  const dir = tempProject({ 'studio.json': { studio: '1.x', name: 'S', playtests: 'playtest' }, 'playtest/round-1/REPORT.md': '## S\n\n**Next:**\n6. a\n7. b\n\n1. c\n' });
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+
+  const anchors = ['s/1', 's/2', 's/3'];
+  for (const anchor of anchors) await postJson(`${studio.url}/__studio/feedback`, { remark: 'x', pin: finding('round-1/REPORT.md', anchor, anchor) });
+  const items: { pin: { label: string }; resolved: boolean }[] = await (await fetch(`${studio.url}/__studio/feedback`)).json();
+  assert.deepEqual(Object.fromEntries(items.map((i) => [i.pin.label, i.resolved])), { 's/1': true, 's/2': false, 's/3': false });
+});
+
 test('a listed playtest file is read by its Game Project path; anything else is refused', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);

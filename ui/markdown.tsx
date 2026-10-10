@@ -1,51 +1,19 @@
 // Markdown rendering shared by the Docs, Playtests and Feedback Surfaces, on TanStack Markdown.
-// Anchors come from the server's own `headingAnchors` (server/slug.ts), so every anchor the page offers is one a Pin
-// resolves to: top-level headings take the server's heading anchors in order, and with `items`, top-level numbered
-// list items and numbered table rows take its `<heading>/<n>` finding anchors.
+// Anchors come from the server's own `blockAnchors` (server/slug.ts), which parses with the same options, so every
+// anchor the page offers is one a Pin resolves to: they are keyed by top-level block index, for headings and, with
+// `items`, for numbered list items and numbered table rows (`<heading>/<n>`).
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { parseMarkdown, type BlockNode, type InlineNode, type ListNode, type MarkdownExtension, type ParseOptions, type TableNode } from '@tanstack/markdown';
+import { parseMarkdown, type BlockNode, type InlineNode, type ListNode, type TableNode } from '@tanstack/markdown';
 import { renderBlockReact, renderInlineReact, type MarkdownReactOptions } from '@tanstack/markdown/react';
-import { calloutsExtension } from '@tanstack/markdown/extensions/callouts';
-import { headingAnchors } from '../server/slug.ts';
+import { blockAnchors, parseBase } from '../server/slug.ts';
 import { PinGlyph, Portrait } from './design/atoms.tsx';
 import { blockComponents, readFrontmatter, studioBlocks, type Meta } from './blocks.tsx';
 import { lookOf, personaName } from './design/personas.ts';
 
-/** Setext headings (`Title` over `===` or `---`), which TanStack Markdown leaves out. Same rule as the server's:
- *  one text line, not a list item or quote, directly above the underline. */
-const setext: MarkdownExtension = {
-  name: 'studio-setext',
-  parseBlock({ lines, index, parseInline, consume }) {
-    const line = lines[index];
-    const under = lines[index + 1]?.match(/^ {0,3}(=+|-+)\s*$/);
-    if (!under || !line.trim() || /^ {0,3}([-*+>#]|\d+[.)]\s|`{3,}|~{3,}|\|)/.test(line)) return undefined;
-    consume(2);
-    return { type: 'heading', depth: under[1][0] === '=' ? 1 : 2, children: parseInline(line.trim()) };
-  },
-};
-
-/** Indented code blocks (four spaces after a blank line), which TanStack Markdown leaves out. */
-const indentedCode: MarkdownExtension = {
-  name: 'studio-indented-code',
-  parseBlock({ lines, index, consume }) {
-    const indented = (l: string) => /^( {4}|\t)/.test(l);
-    if (!indented(lines[index]) || (index > 0 && lines[index - 1].trim())) return undefined;
-    let end = index;
-    while (end < lines.length && (indented(lines[end]) || !lines[end].trim())) end++;
-    while (end > index && !lines[end - 1].trim()) end--;
-    consume(end - index);
-    return { type: 'code', value: lines.slice(index, end).map((l) => l.replace(/^( {4}|\t)/, '')).join('\n') };
-  },
-};
-
-// ponytail: the Game Project's own files may hold raw HTML; it is rendered as-is, as the Studio did with marked.
-const base: ParseOptions = { allowHtml: true, headingIds: false };
-const callouts = calloutsExtension();
-
 /** Parse and render options for one file: its frontmatter `kind` adds the Studio blocks. */
 function optionsFor(meta: Meta, persona?: string): MarkdownReactOptions {
   const blocks = studioBlocks(meta, persona);
-  return { ...base, extensions: [setext, indentedCode, callouts, ...(blocks ? [blocks] : [])], components: blockComponents };
+  return { ...parseBase, extensions: [...parseBase.extensions!, ...(blocks ? [blocks] : [])], components: blockComponents };
 }
 
 type Href = (anchor: string) => string;
@@ -56,7 +24,7 @@ export type OutlineEntry = { id: string; text: string; depth: number };
  *  `counts[anchor]` marks headings and findings that already carry live Feedback; `onOutline` receives the headings. */
 export function Markdown({ text, anchor, href, items, counts, onOutline, persona }: { text: string; anchor?: string; href: Href; items?: boolean; counts?: Record<string, number>; onOutline?: (o: OutlineEntry[]) => void; persona?: string }) {
   const parsed = useMemo(() => parse(text, !!items, persona), [text, items, persona]);
-  const body = render(parsed, href, !!items, counts ?? {});
+  const body = render(parsed, href, counts ?? {});
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (anchor) ref.current?.querySelector(`#${CSS.escape(anchor)}`)?.scrollIntoView();
@@ -69,42 +37,33 @@ const plainText = (nodes: InlineNode[]): string =>
   nodes.map((n) => ('value' in n && n.type !== 'inlineHtml' ? n.value : 'children' in n ? plainText(n.children) : n.type === 'image' ? n.alt : '')).join('');
 
 /** How many live Feedback items an anchor carries. */
-const Count = ({ n }: { n?: number }) => (n ? <span className="pin-count" title={`${n} open Feedback`}><PinGlyph size={11} />{n}</span> : null);
+const Count = ({ n }: { n?: number }) => (n ? <span className="pin-count" title={`${n} live Feedback`}><PinGlyph size={11} />{n}</span> : null);
 
 function parse(text: string, items: boolean, persona?: string) {
   const meta = readFrontmatter(text);
   const options = optionsFor(meta, persona);
+  // `studioBlocks` maps `doc.children` 1:1, so a block's index here is its index in the server's parse.
   const doc = parseMarkdown(text, options);
-  const anchors = headingAnchors(text, items);
-  const headings = anchors.filter((a) => !a.includes('/')); // a slug never holds `/`
-  const findings = new Set(anchors.filter((a) => a.includes('/')));
+  const { heading, items: found } = blockAnchors(text, items);
   const outline: OutlineEntry[] = [];
-  let h = 0;
-  for (const block of doc.children)
-    if (block.type === 'heading' && headings[h]) outline.push({ id: headings[h++], text: plainText(block.children), depth: block.depth });
-  return { doc, headings, findings, outline, options, meta, persona: meta.persona ?? persona };
+  doc.children.forEach((block, i) => {
+    const id = heading.get(i);
+    if (block.type === 'heading' && id) outline.push({ id, text: plainText(block.children), depth: block.depth });
+  });
+  return { doc, heading, found, outline, options, meta, persona: meta.persona ?? persona };
 }
 
-function render({ doc, headings, findings, options, meta, persona }: ReturnType<typeof parse>, href: Href, items: boolean, counts: Record<string, number>): ReactNode[] {
-  let h = 0;
+function render({ doc, heading, found, options, meta, persona }: ReturnType<typeof parse>, href: Href, counts: Record<string, number>): ReactNode[] {
   let titled = false;
-  let section = '';
-  let n = 0;
-  const finding = () => {
-    const id = section ? `${section}/${++n}` : undefined;
-    return id && findings.has(id) ? id : undefined;
-  };
-  const link = (id: string) => <><a className="anchor" href={href(id)}>#</a><Count n={counts[id]} /></>;
+  const link = (id: string) => <><a className="anchor" href={href(id)} aria-label={`Finding ${id.slice(id.lastIndexOf('/') + 1)}`}>#</a><Count n={counts[id]} /></>;
 
   return doc.children.map((block, i) => {
     const key = `b${i}`;
     if (block.type === 'heading') {
-      const id = headings[h++];
-      section = id ?? '';
-      n = 0;
+      const id = heading.get(i);
       const Tag = `h${block.depth}` as const;
       const inner = block.children.map((c, j) => renderInlineReact(c, options, `${j}`));
-      const heading = id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a><Count n={counts[id]} /></Tag> : <Tag key={key}>{inner}</Tag>;
+      const head = id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a><Count n={counts[id]} /></Tag> : <Tag key={key}>{inner}</Tag>;
       // A persona report opens with its author: portrait (or sigil) beside the title.
       if (!titled && block.depth === 1 && persona && (meta.kind === 'persona-report' || meta.kind === 'human-session')) {
         titled = true;
@@ -113,24 +72,21 @@ function render({ doc, headings, findings, options, meta, persona }: ReturnType<
             <Portrait look={lookOf(persona)} size={128} label={personaName(persona)} />
             <div>
               <span className="kicker" style={{ color: lookOf(persona).ink ?? lookOf(persona).color }}>{meta.kind === 'human-session' ? 'Human session' : 'Persona report'}{meta.round && ` · Round ${meta.round}`}</span>
-              {heading}
+              {head}
             </div>
           </header>
         );
       }
-      return heading;
+      return head;
     }
-    // Anchors are taken here, in document order: the components render later, after `section` has moved on.
-    if (items && block.type === 'list' && block.ordered) return <FindingList key={key} list={block} ids={block.items.map(finding)} link={link} options={options} />;
-    if (items && block.type === 'table')
-      return <FindingTable key={key} table={block} ids={block.rows.map((row) => (/^\d+$/.test(cellText(row[0])) ? finding() : undefined))} link={link} options={options} />;
-    return renderBlockReact(block, options, key);
+    const ids = found.get(i);
+    if (ids && block.type === 'list') return <FindingList key={key} list={block} ids={ids} link={link} options={options} />;
+    if (ids && block.type === 'table') return <FindingTable key={key} table={block} ids={ids} link={link} options={options} />;
+    return block.type === 'table' ? <div key={key} className="table-scroll">{renderBlockReact(block, options)}</div> : renderBlockReact(block, options, key);
   });
 }
 
 type Finding = { ids: (string | undefined)[]; link: (id: string) => ReactNode; options: MarkdownReactOptions };
-
-const cellText = (cell: TableNode['header'][number] | undefined) => cell?.children.map((c) => (c.type === 'text' ? c.value : '')).join('').trim() ?? '';
 
 /** A top-level numbered list: each item is a finding (`<heading>/<n>`). */
 function FindingList({ list, ids, link, options }: { list: ListNode } & Finding) {
@@ -163,13 +119,13 @@ function FindingTable({ table, ids, link, options }: { table: TableNode } & Find
       </Cell>
     ));
   return (
-    <table>
+    <div className="table-scroll"><table>
       <thead><tr>{cells(table.header, 'th')}</tr></thead>
       {table.rows.length > 0 && (
         <tbody>
           {table.rows.map((row, r) => <tr key={r} id={ids[r]}>{cells(row, 'td', ids[r])}</tr>)}
         </tbody>
       )}
-    </table>
+    </table></div>
   );
 }

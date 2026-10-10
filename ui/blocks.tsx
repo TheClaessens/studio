@@ -10,7 +10,7 @@ export type Meta = Record<string, string>;
 
 /** A leading `---` block of flat `key: value` lines, as the skills write it. */
 export function readFrontmatter(text: string): Meta {
-  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+  const m = text.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
   const meta: Meta = {};
   for (const line of m?.[1].split(/\r?\n/) ?? []) {
     const kv = line.match(/^([\w-]+):\s*(.*?)\s*$/);
@@ -44,10 +44,14 @@ function severities(nodes: InlineNode[]): InlineNode[] {
   });
 }
 
-const verdictOf = (text: string): Verdict | undefined => {
-  const t = text.toLowerCase();
-  return t.includes('real bug') ? 'real-bug' : t.includes('design flaw') ? 'design-flaw' : t.includes('harness') ? 'harness-artefact'
-    : t.includes('bot limit') ? 'bot-limitation' : t.includes('unverified') ? 'unverified' : undefined;
+const verdicts: [RegExp, Verdict][] = [[/real[ -]bug/, 'real-bug'], [/design[ -]flaw/, 'design-flaw'], [/harness(?:[ -]artefact)?/, 'harness-artefact'], [/bot[ -]limit(?:ation)?/, 'bot-limitation'], [/unverified/, 'unverified']];
+/** The verdict at the start of the cell (after bold markers); the rest of the cell stays as text. */
+const verdictOf = (text: string): { verdict: Verdict; rest: string } | undefined => {
+  const s = text.replace(/^\**\s*/, '');
+  for (const [re, verdict] of verdicts) {
+    const m = s.toLowerCase().match(re);
+    if (m?.index === 0) return { verdict, rest: s.slice(m[0].length) };
+  }
 };
 const score = (text: string) => text.match(/^\**\s*(\d+(?:\.\d+)?)\s*(?:\/\s*10)?\s*\**$/)?.[1];
 
@@ -65,8 +69,24 @@ function decorateTable(table: TableNode, scorecard: boolean): TableNode {
     return row.map((c, i): TableCellNode => {
       const t = cell(c);
       if (i === sev && isSeverity(t.toLowerCase())) return { type: 'tableCell', children: [inline('severity', { level: t.toLowerCase() })] };
-      if (i === verdict && verdictOf(t)) return { type: 'tableCell', children: [inline('verdict', { verdict: verdictOf(t)! })] };
-      if (i === raised && t) return { type: 'tableCell', children: [inline('raised', { ids: t })] };
+      const v = i === verdict ? verdictOf(t) : undefined;
+      if (v) {
+        const rest = v.rest.replace(/^[\s*:—–-]+|\**$/g, '');
+        return { type: 'tableCell', children: [inline('verdict', { verdict: v.verdict }), ...(rest ? [{ type: 'text', value: ` — ${rest}` } as InlineNode] : [])] };
+      }
+      if (i === raised && t) {
+        // Each part leads with a persona id (`dex (3/7)`); parts that don't (`all 7`, `5/7 personas`) stay text.
+        const people: string[] = [];
+        const extra: string[] = [];
+        for (const part of t.split(/[,;]|\band\b/).map((s) => s.trim()).filter(Boolean)) {
+          const m = part.match(/^([a-z][\w-]*)(?![\w/])\s*(.*)$/i);
+          if (m && !/^(all|everyone|none|most)$/i.test(m[1])) (people.push(m[1]), m[2] && extra.push(m[2]));
+          else extra.push(part);
+        }
+        if (!people.length) return c;
+        const rest = extra.join(', ');
+        return { type: 'tableCell', children: [inline('raised', { ids: people.join(', ') }), ...(rest ? [{ type: 'text', value: ` ${rest}` } as InlineNode] : [])] };
+      }
       if (i === persona && t && !mean) return { type: 'tableCell', children: [inline('persona', { id: t.split(/[\s(—-]/)[0].toLowerCase() })] };
       if (scores.includes(i) && score(t)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: mean ? '' : cell(row[persona]).split(/[\s(—-]/)[0].toLowerCase() })] };
       return c;

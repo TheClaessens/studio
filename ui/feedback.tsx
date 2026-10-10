@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Markdown } from './markdown.tsx';
 import { mediaHref, type MediaAnchor } from './media.tsx';
 import { routeHref } from './hash.ts';
-import { Button, FilterPill, PinGlyph, Portrait, StatusChip, type FeedbackStatus } from './design/atoms.tsx';
+import { Button, FilterPill, PinGlyph, Portrait, StatusChip } from './design/atoms.tsx';
 import { humanLook, lookFor } from './design/personas.ts';
 import type { Pin, Item } from '../server/feedback.ts';
 export type { Pin, Item };
@@ -31,9 +31,6 @@ export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
 /** The Surface each Pin kind lives on, for labels and filters. */
 export const surfaceOf: Record<string, string> = { doc: 'Docs', asset: 'Assets', playtest: 'Playtests', media: 'Media', play: 'Play' };
 const surfaceName = (kind: string) => (Object.hasOwn(surfaceOf, kind) ? surfaceOf[kind] : kind);
-
-/** An item's status as shown: an unresolved Pin outranks open or addressed. */
-export const shownStatus = (item: Item): FeedbackStatus => (!item.resolved && item.status !== 'closed' ? 'missing' : item.status);
 
 /** Live Feedback items still with someone (open or waiting for you), counted per anchor of one file. */
 export function useFileFeedback(kind: string, path: string | undefined) {
@@ -75,13 +72,15 @@ export function PinForm({ pin, attachments, attach, onCreated }: { pin: Pin; att
 
 /** Remark, resolution, `---`, new remark…: the item's history in order (see the feedback skill). */
 function thread(body: string) {
-  return body.split(/\r?\n---\r?\n/).flatMap((part) => {
-    const [remark, resolution] = part.split(/^## Resolution[ \t]*$/m);
-    return [
-      { who: 'you' as const, text: remark.trim() },
-      ...(resolution !== undefined ? [{ who: 'agent' as const, text: resolution.trim() }] : []),
-    ].filter((m) => m.text);
-  });
+  // A `---` line separates only after a `## Resolution`; inside a remark it is part of the remark.
+  const [remark, ...rest] = body.split(/^## Resolution[ \t]*$/m);
+  const out: { who: 'you' | 'agent'; text: string }[] = [{ who: 'you', text: remark.trim() }];
+  for (const part of rest) {
+    const cut = part.search(/^---[ \t]*\r?$/m);
+    out.push({ who: 'agent' as const, text: (cut < 0 ? part : part.slice(0, cut)).trim() });
+    if (cut >= 0) out.push({ who: 'you' as const, text: part.slice(cut).replace(/^---[ \t]*\r?\n?/, '').trim() });
+  }
+  return out.filter((m) => m.text);
 }
 
 /** A playtest Pin on a persona report (`NN-<persona>.md`) shows that persona. */
@@ -113,7 +112,8 @@ export function Card({ item, onChange }: { item: Item; onChange: () => void }) {
       ) : null}
       <div className="card__body">
         <header>
-          <StatusChip status={shownStatus(item)} />
+          <StatusChip status={item.status} />
+          {!item.resolved && <StatusChip status="missing" />}
           <span className="dim">{surfaceName(item.pin.kind)}</span>
           {href && item.resolved && <a href={href}>Go to pin</a>}
         </header>
@@ -162,7 +162,8 @@ export function Row({ item }: { item: Item }) {
         <span className="row__label">{item.pin.label}</span>
         <span className="dim">{surfaceName(item.pin.kind)} · {first}</span>
       </span>
-      <StatusChip status={shownStatus(item)} />
+      <StatusChip status={item.status} />
+      {!item.resolved && <StatusChip status="missing" />}
     </>
   );
   return href ? <a className="row" href={href}>{inner}</a> : <div className="row">{inner}</div>;
@@ -170,16 +171,16 @@ export function Row({ item }: { item: Item }) {
 
 type Group = { key: string; title: string; hint?: string; test: (i: Item) => boolean; full: boolean };
 const groups: Group[] = [
-  { key: 'waiting', title: 'Waiting for you', hint: 'addressed by an agent', test: (i) => i.resolved && i.status === 'addressed', full: true },
+  { key: 'waiting', title: 'Waiting for you', hint: 'addressed by an agent', test: (i) => i.status === 'addressed', full: true },
   { key: 'open', title: 'Open', hint: 'with agents', test: (i) => i.resolved && i.status === 'open', full: false },
-  { key: 'missing', title: 'Unresolved pins', hint: 'what they point at is gone', test: (i) => !i.resolved && i.status !== 'closed', full: true },
+  { key: 'missing', title: 'Unresolved pins', hint: 'what they point at is gone', test: (i) => !i.resolved && i.status === 'open', full: true },
   { key: 'closed', title: 'Closed', test: (i) => i.status === 'closed', full: true },
 ];
 
-export function Feedback({ setUp }: { setUp: boolean }) {
+export function Feedback({ setUp, onChange }: { setUp: boolean; onChange?: () => void }) {
   const [items, setItems] = useState<Item[]>();
   const [kinds, setKinds] = useState<string[]>([]);
-  const load = () => listFeedback().then(setItems);
+  const load = () => listFeedback().then((all) => (setItems(all), onChange?.()));
   useEffect(() => void load(), []);
   if (!items) return null;
   const present = [...new Set(items.map((i) => i.pin.kind))];
