@@ -1,6 +1,6 @@
 {
   "name": "studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A local app for using a Game Project's development Tools.",
   "type": "module",
   "private": true,
