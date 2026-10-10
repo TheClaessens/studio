@@ -1,9 +1,14 @@
-// `studio <game-dir> [--port N]`: one Studio server for one Game Project.
+// `studio <game-dir> [--port N]`: one Studio server for one Game Project. `studio check <game-dir>`: see check.ts.
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { createStudioServer } from './app.ts';
 import { readFileSync } from 'node:fs';
 import { loadManifest, inPin, type Manifest } from './manifest.ts';
+
+if (process.argv[2] === 'check') {
+  const { runCheck } = await import('./check.ts');
+  process.exit(await runCheck(resolve(process.argv[3] ?? '.')));
+}
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
