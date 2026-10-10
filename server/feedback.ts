@@ -35,6 +35,7 @@ export const resolvers: Record<string, (pin: Pin, studio: Studio) => boolean | P
     playtestFiles(studio).includes(pin.path) &&
     (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)),
   media: (pin, { root, manifest }) => !!pin.path && globFiles(root, manifest.media).includes(pin.path),
+  play: (pin, { manifest }) => !!pin.path && pin.path === manifest.play?.entry,
 };
 
 /** The catalogue, loaded once per `studio` object, which feedbackRoute makes fresh for each request. */
@@ -154,6 +155,12 @@ function invalid(body: any) {
     if (typeof pin.id !== 'string' || (pin.anchor !== undefined && typeof pin.anchor !== 'string') || (pin.t !== undefined && (typeof pin.t !== 'number' || pin.anchor === undefined)))
       return 'An asset pin is an id, optionally an anchor, and a numeric t only with an anchor.';
     if (!body.attachments?.screenshot) return 'An asset pin needs a screenshot.';
+  }
+  if (pin.kind === 'play') {
+    if (!pin.label.trim()) return 'A play pin needs a label.';
+    const { screenshot, snapshot } = body.attachments ?? {};
+    if (screenshot !== undefined && !/^data:image\//.test(screenshot)) return 'A play pin screenshot is an image.';
+    if (snapshot !== undefined && !/^data:application\/json;/.test(snapshot)) return 'A play pin snapshot is JSON.';
   }
 }
 

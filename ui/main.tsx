@@ -5,6 +5,7 @@ import { Docs } from './docs.tsx';
 import { Media } from './media.tsx';
 import { Feedback } from './feedback.tsx';
 import { Playtests } from './playtests.tsx';
+import { Play } from './play.tsx';
 
 type Surface = { name: string; section: string; setUp: boolean; config?: unknown; example?: unknown };
 
@@ -54,6 +55,7 @@ function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
   if (surface.name === 'Assets') return <Workbench assets={surface.config as { catalogue: string; view: string }} />;
   if (surface.name === 'Docs') return <Docs route={route} />;
   if (surface.name === 'Playtests') return <Playtests route={route} />;
+  if (surface.name === 'Play') return <Play play={surface.config as { entry: string; hooks?: string }} />;
   if (surface.name === 'Media') return <Media route={route} />;
   return (
     <section>

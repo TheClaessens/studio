@@ -47,10 +47,10 @@ A Pin is a stable reference, never a Studio URL. Every Pin has `kind` and a `lab
 | kind | points at | fields |
 |---|---|---|
 | `asset` | a catalogued asset | `id` alone is the whole asset; `id` + `anchor` (an anchor name from the catalogue: a pose or animation) is one animation; `id` + `anchor` + `t` (number, position within the anchor's range) is one frame. `screenshot` |
-| `media` | a file matched by the `media` globs | `path`, plus `t` (seconds into a video) or `region` (`{"x":…,"y":…,"w":…,"h":…}`, a dragged rectangle on an image). `screenshot` |
-| `playtest` | one finding in a playtest report | `path` to the report under the `playtests` root (e.g. `design/playtest/round-3/REPORT.md`), `anchor` as `<heading>` or `<heading>/<n>` for the n-th numbered item under that heading (e.g. `top-issues/2`); `label` is the finding's quoted title |
+| `media` | a file matched by the `media` globs | `path`, plus `t` (seconds into a video) or `region` (`{"x":…,"y":…,"w":…,"h":…}`, a dragged rectangle on an image, each a fraction 0..1 of the image's width or height from its top-left). `screenshot` |
+| `playtest` | one finding in a playtest report | `path` to the report under the `playtests` root (e.g. `design/playtest/round-3/REPORT.md`), optional `anchor` as `<heading>` or `<heading>/<n>` for the n-th numbered list item or numbered table row under that heading (e.g. `top-issues/2`); `label` is the finding's quoted title |
 | `doc` | a design doc matched by the `docs` globs | `path`, optional `anchor` (a heading anchor) |
-| `play` | a moment in the running game | `path` (the play entry), `screenshot` and `snapshot` (the JSON the game's hooks reported at that moment) |
+| `play` | a moment in the running game | `path` is `play.entry` as written in `studio.json` (a Game Project path, or an absolute URL for a streamed game); `label` is the human's description of the moment. `screenshot` (always for a same-origin game; for an absolute URL only if the human pasted one) and `snapshot` (the JSON the game's `play.hooks` reported at that moment; descriptive, never restored; absent without hooks) |
 
 A **heading anchor** is the GitHub-style slug of the heading text: lowercase, punctuation dropped, spaces to dashes; a repeated heading gets `-1`, `-2` on its later copies (`notes`, `notes-1`).
 

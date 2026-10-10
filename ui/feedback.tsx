@@ -21,6 +21,7 @@ export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
   asset: (pin) => `#Assets/${new URLSearchParams(Object.entries({ id: pin.id, anchor: pin.anchor, t: pin.t }).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`,
   playtest: (pin) => `#Playtests/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
   media: (pin) => mediaHref(pin.path ?? '', pin as MediaAnchor),
+  play: () => '#Play',
 };
 
 const noLink = () => '';
