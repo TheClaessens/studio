@@ -3,9 +3,10 @@
 // resolves to: top-level headings take the server's heading anchors in order, and with `items`, top-level numbered
 // list items and numbered table rows take its `<heading>/<n>` finding anchors.
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { parseMarkdown, type BlockNode, type ListNode, type MarkdownExtension, type ParseOptions, type TableNode } from '@tanstack/markdown';
+import { parseMarkdown, type BlockNode, type InlineNode, type ListNode, type MarkdownExtension, type ParseOptions, type TableNode } from '@tanstack/markdown';
 import { renderBlockReact, renderInlineReact } from '@tanstack/markdown/react';
 import { headingAnchors } from '../server/slug.ts';
+import { PinGlyph } from './design/atoms.tsx';
 
 /** Setext headings (`Title` over `===` or `---`), which TanStack Markdown leaves out. Same rule as the server's:
  *  one text line, not a list item or quote, directly above the underline. */
@@ -38,22 +39,41 @@ const indentedCode: MarkdownExtension = {
 const options: ParseOptions = { allowHtml: true, headingIds: false, extensions: [setext, indentedCode] };
 
 type Href = (anchor: string) => string;
+/** A top-level heading with an anchor, for the file's outline. */
+export type OutlineEntry = { id: string; text: string; depth: number };
 
-/** Renders `text`; `href(anchor)` makes each heading a link to itself, and `anchor` is scrolled into view. */
-export function Markdown({ text, anchor, href, items }: { text: string; anchor?: string; href: Href; items?: boolean }) {
-  const body = useMemo(() => render(text, href, !!items), [text, href, items]);
+/** Renders `text`; `href(anchor)` makes each heading a link to itself, and `anchor` is scrolled into view.
+ *  `counts[anchor]` marks headings and findings that already carry live Feedback; `onOutline` receives the headings. */
+export function Markdown({ text, anchor, href, items, counts, onOutline }: { text: string; anchor?: string; href: Href; items?: boolean; counts?: Record<string, number>; onOutline?: (o: OutlineEntry[]) => void }) {
+  const parsed = useMemo(() => parse(text, !!items), [text, items]);
+  const body = render(parsed, href, !!items, counts ?? {});
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (anchor) ref.current?.querySelector(`#${CSS.escape(anchor)}`)?.scrollIntoView();
-  }, [body, anchor]);
+  }, [text, anchor]);
+  useEffect(() => onOutline?.(parsed.outline), [parsed]);
   return <article ref={ref} className="markdown">{body}</article>;
 }
 
-function render(text: string, href: Href, items: boolean): ReactNode[] {
+const plainText = (nodes: InlineNode[]): string =>
+  nodes.map((n) => ('value' in n && n.type !== 'inlineHtml' ? n.value : 'children' in n ? plainText(n.children) : n.type === 'image' ? n.alt : '')).join('');
+
+/** How many live Feedback items an anchor carries. */
+const Count = ({ n }: { n?: number }) => (n ? <span className="pin-count" title={`${n} open Feedback`}><PinGlyph size={11} />{n}</span> : null);
+
+function parse(text: string, items: boolean) {
   const doc = parseMarkdown(text, options);
   const anchors = headingAnchors(text, items);
   const headings = anchors.filter((a) => !a.includes('/')); // a slug never holds `/`
   const findings = new Set(anchors.filter((a) => a.includes('/')));
+  const outline: OutlineEntry[] = [];
+  let h = 0;
+  for (const block of doc.children)
+    if (block.type === 'heading' && headings[h]) outline.push({ id: headings[h++], text: plainText(block.children), depth: block.depth });
+  return { doc, headings, findings, outline };
+}
+
+function render({ doc, headings, findings }: ReturnType<typeof parse>, href: Href, items: boolean, counts: Record<string, number>): ReactNode[] {
   let h = 0;
   let section = '';
   let n = 0;
@@ -61,7 +81,7 @@ function render(text: string, href: Href, items: boolean): ReactNode[] {
     const id = section ? `${section}/${++n}` : undefined;
     return id && findings.has(id) ? id : undefined;
   };
-  const link = (id: string) => <a className="anchor" href={href(id)}>#</a>;
+  const link = (id: string) => <><a className="anchor" href={href(id)}>#</a><Count n={counts[id]} /></>;
 
   return doc.children.map((block, i) => {
     const key = `b${i}`;
@@ -71,7 +91,7 @@ function render(text: string, href: Href, items: boolean): ReactNode[] {
       n = 0;
       const Tag = `h${block.depth}` as const;
       const inner = block.children.map((c, j) => renderInlineReact(c, options, `${j}`));
-      return id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a></Tag> : <Tag key={key}>{inner}</Tag>;
+      return id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a><Count n={counts[id]} /></Tag> : <Tag key={key}>{inner}</Tag>;
     }
     // Anchors are taken here, in document order: the components render later, after `section` has moved on.
     if (items && block.type === 'list' && block.ordered) return <FindingList key={key} list={block} ids={block.items.map(finding)} link={link} />;

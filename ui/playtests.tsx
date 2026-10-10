@@ -1,8 +1,7 @@
 // The Playtests Surface: rounds latest first; layout files rendered as markdown, the rest raw.
 // Route: `#Playtests/<path>#<finding anchor>`, the path relative to the Game Project.
 import { useEffect, useState } from 'react';
-import { Markdown } from './markdown.tsx';
-import { PinForm } from './feedback.tsx';
+import { Reader } from './reader.tsx';
 import { routeHref, splitRoute } from './hash.ts';
 
 type File = { path: string; markdown: boolean };
@@ -40,36 +39,29 @@ export function Playtests({ route }: { route: string }) {
     setText(undefined);
     if (selected) fetch(`/__studio/playtests/${encodeURI(selected)}`).then((r) => (r.ok ? r.text() : `Not a playtest file: ${selected}`)).then(setText);
   }, [selected]);
-  // A finding Pin quotes the finding's title as rendered at pin time: its bold lead, else its text.
-  const [label, setLabel] = useState<string>();
-  useEffect(() => {
-    const el = anchor ? document.getElementById(anchor) : null;
-    const title = el && (el.querySelector('strong') ?? el).textContent?.replace(/^#\s*/, '').trim();
-    setLabel(title ? title.slice(0, 160) : undefined);
-  }, [text, anchor]);
-
   return (
-    <div className="docs">
-      <aside>
-        {listing.rounds.map((r, i) => (
-          <details key={r.name} open={i === 0 || r.files.some((f) => f.path === selected)}>
-            <summary>{r.name}{i === 0 && ' (latest)'}</summary>
-            <Files files={r.files} selected={selected} />
-          </details>
-        ))}
-        {listing.files.length > 0 && (
-          <details open={listing.files.some((f) => f.path === selected)}>
-            <summary>other files</summary>
-            <Files files={listing.files} selected={selected} />
-          </details>
-        )}
-        {!all.length && <p>No files under the playtests root.</p>}
-      </aside>
-      <div className="doc">
-        {label !== undefined && <PinForm key={`${selected}#${anchor}`} pin={{ kind: 'playtest', path: selected, anchor, label }} />}
-        {text !== undefined && (file?.markdown ? <Markdown text={text} anchor={anchor} href={(a) => link(selected, a)} items /> : <pre>{text}</pre>)}
-        {label === undefined && file?.markdown && text !== undefined && <p className="dim">Click a heading or a numbered finding's # to pin Feedback to it.</p>}
-      </div>
-    </div>
+    <Reader
+      rail={
+        <>
+          {listing.rounds.map((r, i) => (
+            <details key={r.name} open={i === 0 || r.files.some((f) => f.path === selected)}>
+              <summary>{r.name}{i === 0 && ' (latest)'}</summary>
+              <Files files={r.files} selected={selected} />
+            </details>
+          ))}
+          {listing.files.length > 0 && (
+            <details open={listing.files.some((f) => f.path === selected)}>
+              <summary>other files</summary>
+              <Files files={listing.files} selected={selected} />
+            </details>
+          )}
+          {!all.length && <p>No files under the playtests root.</p>}
+        </>
+      }
+      kind="playtest" path={selected ?? ''} text={text} markdown={!!file?.markdown} anchor={anchor} href={(a) => link(selected, a)} items
+      // A finding Pin quotes the finding's title as rendered at pin time: its bold lead, else its text.
+      labelOf={(el) => (el.querySelector('strong') ?? el).textContent?.replace(/^#\s*/, '').trim().slice(0, 160) || undefined}
+      hint="Click a heading or a numbered finding's # to pin Feedback to it."
+    />
   );
 }

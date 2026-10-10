@@ -13,14 +13,16 @@ test('the Feedback inbox shows an item created over HTTP', { skip: noBrowser, ti
   const browser = await openBrowser();
   t.after(browser.close);
   await browser.open(`${studio.url}/__studio/#Feedback`);
-  const text = await browser.evaluate(`(async () => {
-    for (const until = Date.now() + 10000; Date.now() < until; await new Promise((r) => setTimeout(r, 100)))
-      if (document.querySelector('.inbox .card')) return document.querySelector('.inbox').innerText;
-    return document.body.innerText;
+  const { text, href } = await browser.evaluate(`(async () => {
+    for (const until = Date.now() + 10000; Date.now() < until; await new Promise((r) => setTimeout(r, 100))) {
+      const row = document.querySelector('.inbox .row');
+      if (row) return { text: document.querySelector('.inbox').innerText, href: row.getAttribute('href') };
+    }
+    return { text: document.body.innerText, href: null };
   })()`);
-  assert.match(text, /Open \(1\)/);
+  assert.match(text, /Open\s+1/);
   assert.match(text, /Combat drags on/);
-  assert.match(text, /go to pin/);
+  assert.equal(href, '#Docs/DESIGN.md#combat'); // the row goes to its Pin
   assert.deepEqual(browser.pageErrors, []);
   assert.ok((await browser.screenshot()).length > 0);
 });
