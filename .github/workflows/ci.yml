@@ -14,6 +14,9 @@ jobs:
         id: chrome
         with:
           install-dependencies: true
+      # Ubuntu 24.04's AppArmor blocks the user namespaces Chrome's sandbox needs;
+      # without this, pages never load and the browser tests hang.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm ci
       # `studio check` (seam 2) and the UI smoke tests skip without a browser.
       - run: npm run check
