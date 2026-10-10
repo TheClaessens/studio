@@ -118,8 +118,8 @@ const stepped = (s: number) =>
   `polygon(${2 * s}px 0, calc(100% - ${2 * s}px) 0, calc(100% - ${2 * s}px) ${s}px, calc(100% - ${s}px) ${s}px, calc(100% - ${s}px) ${2 * s}px, 100% ${2 * s}px, 100% calc(100% - ${2 * s}px), calc(100% - ${s}px) calc(100% - ${2 * s}px), calc(100% - ${s}px) calc(100% - ${s}px), calc(100% - ${2 * s}px) calc(100% - ${s}px), calc(100% - ${2 * s}px) 100%, ${2 * s}px 100%, ${2 * s}px calc(100% - ${s}px), ${s}px calc(100% - ${s}px), ${s}px calc(100% - ${2 * s}px), 0 calc(100% - ${2 * s}px), 0 ${2 * s}px, ${s}px ${2 * s}px, ${s}px ${s}px, ${2 * s}px ${s}px)`;
 
 /** A persona's generated 32 × 32 pixel-art portrait at a whole multiple (D7), ringed in its colour.
- *  Without `src` it shows the sigil in the same frame. Below 32 px use `Sigil` instead. */
-export function Portrait({ look, src, size = 32, label }: { look: PersonaLook; src?: string; size?: 32 | 64 | 128; label: string }) {
+ *  `src` defaults to the look's portrait; without one it shows the sigil in the same frame. Below 32 px use `Sigil` instead. */
+export function Portrait({ look, src = look.portrait, size = 32, label }: { look: PersonaLook; src?: string; size?: 32 | 64 | 128; label: string }) {
   const scale = size / 32;
   const ring = scale;
   const clip = stepped(scale);

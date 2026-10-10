@@ -3,18 +3,20 @@
 ## Project layout
 
 ```
-playtest/
+playtest/          ← studio.json `playtests`
   adapter.js      ← the per-game adapter (from the skill's templates/adapter.template.js; studio.json play.adapter)
   PERSONAS.md     ← the panel for this game (from references/personas.md)
   BRIEF.md        ← shared brief + report template (from references/brief-template.md)
+  personas/       ← <id>.png portraits, drawn once per persona (templates/portrait.mjs)
   out/            ← screenshots (studio.json out.playtest; the Studio writes PT.shot PUTs here)
   rounds/
     round-1/
+      00-human.md ← a human tester's session, when there is one
       01-<persona>.md … NN-<persona>.md, *-data.json
       REPORT.md   ← the synthesis
 ```
 
-If the project already keeps design docs elsewhere (e.g. `design/`), PERSONAS/BRIEF/rounds can live there; point studio.json `playtests` at the rounds root. The Kit is never in the project: the adapter imports it from `/__studio/kits/playtest/`.
+If the project already keeps design docs elsewhere (e.g. `design/`), PERSONAS/BRIEF/personas/rounds can live there; point studio.json `playtests` at the folder that holds `PERSONAS.md`. The Kit is never in the project: the adapter imports it from `/__studio/kits/playtest/`.
 
 The Studio is the only server: `npx github:TheClaessens/studio#semver:<pin> .` from the Game Project root, `<pin>` being studio.json's `"studio"` (e.g. `1.x`). If the session has a preview browser, make that the one Studio entry in `.claude/launch.json` and start it from there, not from a shell.
 

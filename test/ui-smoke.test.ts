@@ -127,3 +127,53 @@ test('playtest files with a kind show the Studio blocks: scores, severity, verdi
   assert.deepEqual(persona.sev, ['Major']);
   assert.deepEqual(browser.pageErrors, []);
 });
+
+// A 1 × 1 PNG: enough to see the portrait load in place of the sigil.
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64').toString('latin1');
+
+test('personas look as PERSONAS.md says across the Playtests Surface; a human session carries the human mark', { skip: noBrowser, timeout: 60_000 }, async (t) => {
+  const personas = ['---', 'kind: personas', '---', '# Personas', '', '## 1. Mila', '```persona', 'id: mila', 'archetype: Cozy casual', 'quote: I play to unwind.', 'color: #b0446a', 'sigil: moon', 'portrait: personas/mila.png', '```', '**Play plan**', '- Three runs.', ''].join('\n');
+  const mila = ['---', 'kind: persona-report', 'round: 1', 'persona: mila', '---', '# Mila — cozy casual · playtest round 1', '**Lovely.** Fun: 8/10 · Would play again tomorrow: yes · Domain score: 7/10', ''].join('\n');
+  const human = ['---', 'kind: human-session', 'round: 1', 'tester: Thomas', '---', '# Human playtester — boss fights · playtest round 1', '', '## Findings', '1. **Too calm.** "I missed the chaos."', ''].join('\n');
+  const dir = tempProject({ 'studio.json': { studio: '1.x', name: 'Panel', playtests: 'playtest' }, 'playtest/PERSONAS.md': personas, 'playtest/round-1/01-mila.md': mila, 'playtest/round-1/00-human.md': human });
+  // Binary: write the portrait apart from tempProject's text files.
+  const { writeFileSync, mkdirSync } = await import('node:fs');
+  mkdirSync(`${dir}/playtest/personas`);
+  writeFileSync(`${dir}/playtest/personas/mila.png`, Buffer.from(png, 'latin1'));
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+  const browser = await openBrowser();
+  t.after(browser.close);
+
+  const look = async (hash: string, ready: string) => {
+    await browser.open(`${studio.url}/__studio/?${encodeURIComponent(hash)}${hash}`);
+    return browser.evaluate(`(async () => {
+      for (const until = Date.now() + 10000; Date.now() < until; await new Promise((r) => setTimeout(r, 100)))
+        if (document.querySelector(${JSON.stringify(ready)})?.complete !== false && document.querySelector(${JSON.stringify(ready)})) break;
+      const head = document.querySelector('.persona-head, .persona-card');
+      return {
+        text: document.querySelector('.markdown')?.innerText ?? '',
+        rail: document.querySelector('.reader__rail')?.innerText ?? '',
+        portrait: head?.querySelector('img')?.naturalWidth ?? 0,
+        label: head?.querySelector('[role=img]')?.getAttribute('aria-label'),
+      };
+    })()`);
+  };
+  const report = await look('#Playtests/playtest/round-1/01-mila.md', '.persona-head img');
+  assert.equal(report.portrait, 1);
+  assert.match(report.text, /Persona report · Cozy casual · Round 1/i);
+  assert.match(report.text, /I play to unwind\./);
+  assert.match(report.rail, /Mila/);
+  assert.match(report.rail, /Human session/);
+
+  const session = await look('#Playtests/playtest/round-1/00-human.md', '.persona-head');
+  assert.equal(session.portrait, 0); // the human mark, never a persona's portrait
+  assert.equal(session.label, 'Thomas');
+  assert.match(session.text, /Human session · Thomas · Round 1/i);
+
+  const panel = await look('#Playtests/playtest/PERSONAS.md', '.persona-card img');
+  assert.equal(panel.portrait, 1);
+  assert.match(panel.text, /Mila · Cozy casual/);
+  assert.doesNotMatch(panel.text, /sigil: moon/); // the persona block is a card, not code
+  assert.deepEqual(browser.pageErrors, []);
+});

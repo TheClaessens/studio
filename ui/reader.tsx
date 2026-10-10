@@ -13,6 +13,8 @@ type Props = {
   text?: string;
   /** Raw files (not markdown) show as source only. */
   markdown: boolean;
+  /** Shown instead of the text (an image file). */
+  body?: ReactNode;
   anchor?: string;
   href: (anchor: string) => string;
   /** Numbered findings are pinnable too (playtest reports). */
@@ -22,7 +24,7 @@ type Props = {
   hint: string;
 };
 
-export function Reader({ rail, kind, path, text, markdown, anchor, href, items, labelOf, hint }: Props) {
+export function Reader({ rail, kind, path, text, markdown, body, anchor, href, items, labelOf, hint }: Props) {
   const [view, setView] = useState<'rendered' | 'source'>('rendered');
   const [outline, setOutline] = useState<OutlineEntry[]>([]);
   const feedback = useFileFeedback(kind, path);
@@ -50,6 +52,7 @@ export function Reader({ rail, kind, path, text, markdown, anchor, href, items, 
           )}
         </div>
         {label !== undefined && <PinForm key={`${path}#${anchor}`} pin={{ kind, path, anchor, label }} onCreated={feedback.reload} />}
+        {body}
         {text !== undefined && (rendered ? (
           <Markdown text={text} anchor={anchor} href={href} items={items} counts={feedback.counts} onOutline={setOutline} persona={persona} />
         ) : (

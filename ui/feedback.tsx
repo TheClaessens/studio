@@ -4,7 +4,7 @@ import { Markdown } from './markdown.tsx';
 import { mediaHref, type MediaAnchor } from './media.tsx';
 import { routeHref } from './hash.ts';
 import { Button, FilterPill, PinGlyph, Portrait, StatusChip } from './design/atoms.tsx';
-import { humanLook, lookFor } from './design/personas.ts';
+import { lookOf } from './design/personas.ts';
 import type { Pin, Item } from '../server/feedback.ts';
 export type { Pin, Item };
 
@@ -86,7 +86,7 @@ function thread(body: string) {
 /** A playtest Pin on a persona report (`NN-<persona>.md`) shows that persona. */
 function personaOf(pin: Pin) {
   const id = pin.kind === 'playtest' ? pin.path?.match(/(?:^|\/)\d+-([\w.-]+)\.md$/)?.[1] : undefined;
-  return id ? { id, look: /human/i.test(id) ? humanLook : lookFor(id) } : undefined;
+  return id ? { id, look: lookOf(id) } : undefined;
 }
 
 /** One Feedback item in full: what it points at, the remark and resolution history, and the human's actions. */

@@ -3,8 +3,10 @@
 // `components` map below renders them. Which rules apply is chosen by the file's frontmatter `kind`.
 import { useState, type ReactNode } from 'react';
 import type { BlockNode, ComponentNode, InlineComponentNode, InlineNode, MarkdownExtension, TableCellNode, TableNode } from '@tanstack/markdown';
-import { FilterPill, Meter, Segmented, SeverityBadge, Sigil, VerdictTag, isSeverity, type Verdict } from './design/atoms.tsx';
-import { lookOf, personaName } from './design/personas.ts';
+import { FilterPill, HandsMeter, Meter, Portrait, Segmented, SeverityBadge, Sigil, Tag, VerdictTag, isSeverity, type Hands, type Verdict } from './design/atoms.tsx';
+import { lookOf, personaName, personaOf } from './design/personas.ts';
+
+const isHands = (h: string): h is Hands => ['casual', 'average', 'expert'].includes(h);
 
 export type Meta = Record<string, string>;
 
@@ -151,9 +153,19 @@ function findingsFence(b: BlockNode): ComponentNode | undefined {
   return undefined;
 }
 
+/** PERSONAS.md: each persona's `persona` fence (server/personas.ts reads the same fences) becomes its card. */
+const personaCards: MarkdownExtension = {
+  name: 'studio-personas',
+  transformDocument: (doc) => ({
+    ...doc,
+    children: doc.children.map((b) => (b.type === 'code' && b.lang === 'persona' && /^id:\s*\S/m.test(b.value) ? block('persona-card', { id: b.value.match(/^id:\s*(\S+)/m)![1].toLowerCase() }) : b)),
+  }),
+};
+
 /** The extension for one file: `kind` picks the rules, `persona` names a persona report's author. */
 export function studioBlocks(meta: Meta, persona?: string): MarkdownExtension | undefined {
   const kind = meta.kind;
+  if (kind === 'personas') return personaCards;
   if (kind !== 'playtest-report' && kind !== 'persona-report' && kind !== 'human-session') return undefined;
   const who = meta.persona ?? persona ?? '';
   return {
@@ -203,6 +215,25 @@ function Score({ value, persona }: { value: string; persona?: string }) {
       <Meter value={v} label={`${value} of 10`} color={persona ? lookOf(persona).color : 'var(--ink)'} />
       <span>{value}</span>
     </span>
+  );
+}
+
+function PersonaCard({ id }: { id: string }) {
+  const look = lookOf(id);
+  const p = personaOf(id);
+  return (
+    <div className="persona-card">
+      <Portrait look={look} size={64} label={personaName(id)} />
+      <div>
+        <strong>{personaName(id)}{p?.archetype && <span className="dim"> · {p.archetype}</span>}</strong>
+        {p?.quote && <p className={voiceClass(id)} style={{ color: look.ink }}>“{p.quote.replace(/^[“"]|[”"]$/g, '')}”</p>}
+        <span className="persona-card__tags">
+          {p?.hands && isHands(p.hands) && <Tag><HandsMeter hands={p.hands} color={look.color} /> {p.hands} hands</Tag>}
+          {p?.save && <Tag>{p.save} save</Tag>}
+          {p?.model && <Tag>{p.model}</Tag>}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -296,4 +327,5 @@ export const blockComponents = {
   'studio-lanes': ({ children }: { children?: ReactNode }) => <div className="lanes">{children}</div>,
   'studio-lane': Lane,
   'studio-findings': Findings,
+  'studio-persona-card': PersonaCard,
 };

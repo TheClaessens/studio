@@ -169,6 +169,15 @@ a.row:focus-visible { outline-offset: -2px; }
 .persona-head { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin-bottom: 8px; }
 .persona-head > div { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 6px; }
 .markdown .persona-head h1 { margin: 0; }
+.persona-head__quote { font-size: 18px; }
+.persona-head__plan summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--dim); }
+.persona-head__plan ul { margin: 6px 0 0; }
+.persona-card { display: flex; gap: 16px; align-items: flex-start; padding: 16px; margin: 12px 0; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-card); }
+.persona-card > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.persona-card .voice { font-size: 17px; }
+.persona-card__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.reader__image { max-width: 100%; image-rendering: pixelated; background: var(--stage); border-radius: var(--r-card); }
+.rail-persona { display: flex; align-items: center; gap: 8px; }
 .scores { display: flex; flex-direction: column; gap: 16px; margin: 20px 0 32px; padding: 22px 24px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-panel); }
 .scores__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 12px; }
 .tile { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: var(--r-card); background: var(--paper); }

@@ -8,7 +8,7 @@ import { renderBlockReact, renderInlineReact, type MarkdownReactOptions } from '
 import { blockAnchors, parseBase } from '../server/slug.ts';
 import { PinGlyph, Portrait } from './design/atoms.tsx';
 import { blockComponents, readFrontmatter, studioBlocks, type Meta } from './blocks.tsx';
-import { lookOf, personaName } from './design/personas.ts';
+import { lookOf, personaName, personaOf } from './design/personas.ts';
 
 /** Parse and render options for one file: its frontmatter `kind` adds the Studio blocks. */
 function optionsFor(meta: Meta, persona?: string): MarkdownReactOptions {
@@ -65,17 +65,11 @@ function render({ doc, heading, found, options, meta, persona }: ReturnType<type
       const inner = block.children.map((c, j) => renderInlineReact(c, options, `${j}`));
       const head = id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a><Count n={counts[id]} /></Tag> : <Tag key={key}>{inner}</Tag>;
       // A persona report opens with its author: portrait (or sigil) beside the title.
-      if (!titled && block.depth === 1 && persona && (meta.kind === 'persona-report' || meta.kind === 'human-session')) {
+      // A human session is always the human mark, whatever its file is called (D5).
+      const human = meta.kind === 'human-session';
+      if (!titled && block.depth === 1 && (human || (persona && meta.kind === 'persona-report'))) {
         titled = true;
-        return (
-          <header key={key} className="persona-head">
-            <Portrait look={lookOf(persona)} size={128} label={personaName(persona)} />
-            <div>
-              <span className="kicker" style={{ color: lookOf(persona).ink ?? lookOf(persona).color }}>{meta.kind === 'human-session' ? 'Human session' : 'Persona report'}{meta.round && ` · Round ${meta.round}`}</span>
-              {head}
-            </div>
-          </header>
-        );
+        return <PersonaHead key={key} id={human ? 'human' : persona!} human={human} tester={meta.tester} round={meta.round}>{head}</PersonaHead>;
       }
       return head;
     }
@@ -84,6 +78,31 @@ function render({ doc, heading, found, options, meta, persona }: ReturnType<type
     if (ids && block.type === 'table') return <FindingTable key={key} table={block} ids={ids} link={link} options={options} />;
     return block.type === 'table' ? <div key={key} className="table-scroll">{renderBlockReact(block, options)}</div> : renderBlockReact(block, options, key);
   });
+}
+
+/** A persona report's author from PERSONAS.md: portrait, archetype, quote in their voice, and how they set out to play. */
+function PersonaHead({ id, human, tester, round, children }: { id: string; human: boolean; tester?: string; round?: string; children: ReactNode }) {
+  const look = lookOf(id);
+  const p = human ? undefined : personaOf(id);
+  const name = human ? tester || 'Human tester' : personaName(id);
+  return (
+    <header className="persona-head">
+      <Portrait look={look} size={128} label={name} />
+      <div>
+        <span className="kicker" style={{ color: look.ink ?? look.color }}>
+          {human ? `Human session${tester ? ` · ${tester}` : ''}` : ['Persona report', p?.archetype].filter(Boolean).join(' · ')}{round && ` · Round ${round}`}
+        </span>
+        {children}
+        {p?.quote && <p className={`voice voice--${look.voice ?? 'soft'} persona-head__quote`} style={{ color: look.ink }}>“{p.quote.replace(/^[“"]|[”"]$/g, '')}”</p>}
+        {p && p.plan.length > 0 && (
+          <details className="persona-head__plan">
+            <summary>Play plan{p.hands && ` · ${p.hands} hands`}{p.save && ` · ${p.save} save`}</summary>
+            <ul>{p.plan.map((s, i) => <li key={i}>{s}</li>)}</ul>
+          </details>
+        )}
+      </div>
+    </header>
+  );
 }
 
 type Finding = { ids: (string | undefined)[]; link: (id: string) => ReactNode; options: MarkdownReactOptions };

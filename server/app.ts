@@ -8,6 +8,7 @@ import { loadCatalogue } from './catalogue.ts';
 import { globFiles } from './globs.ts';
 import { feedbackRoute } from './feedback.ts';
 import { playtestsRoute } from './playtests.ts';
+import { personasRoute } from './personas.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -51,6 +52,7 @@ const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/media', declared('media')],
   ['/__studio/feedback', feedbackRoute],
   ['/__studio/playtests', playtestsRoute],
+  ['/__studio/personas', personasRoute],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (req, res, rest, { root }) => serveFile(res, root, rest, req.headers.range)],
 ];

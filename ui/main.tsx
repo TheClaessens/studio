@@ -12,6 +12,7 @@ import { Feedback, listFeedback } from './feedback.tsx';
 import { Playtests } from './playtests.tsx';
 import { Play } from './play.tsx';
 import { NotSetUp, Shell, TopBar, type Surface } from './shell.tsx';
+import { loadPanel } from './design/personas.ts';
 
 // `#<Surface>/<surface route>`; the route stays encoded for the Surface to decode (see hash.ts).
 const current = () => location.hash.slice(1);
@@ -63,4 +64,5 @@ function SurfaceView({ surface, route, onFeedback }: { surface: Surface; route: 
   );
 }
 
-createRoot(document.getElementById('root')!).render(<Studio />);
+// Persona looks are read synchronously while rendering, so the panel loads first.
+loadPanel().then(() => createRoot(document.getElementById('root')!).render(<Studio />));
