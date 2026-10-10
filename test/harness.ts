@@ -25,9 +25,10 @@ export function startStudio(dir: string, ...args: string[]) {
   });
 }
 
-/** Runs the Studio expecting it to exit on its own (e.g. a bad manifest), or `studio check <dir>` with `check`. */
-export function runStudio(dir: string, { check = false } = {}) {
-  const child = spawn(process.execPath, check ? [bin, 'check', dir] : [bin, dir, '--port', '0']);
+/** Runs the Studio expecting it to exit on its own (e.g. a bad manifest), or `studio check <dir>` with `check`.
+ *  `nodeArgs` go to Node itself (e.g. an `--import` that fakes the Node version). */
+export function runStudio(dir: string, { check = false, nodeArgs = [] as string[] } = {}) {
+  const child = spawn(process.execPath, [...nodeArgs, ...(check ? [bin, 'check', dir] : [bin, dir, '--port', '0'])]);
   let out = '';
   child.stdout.on('data', (d) => (out += d));
   child.stderr.on('data', (d) => (out += d));

@@ -13,6 +13,13 @@ test('a code-free static-only Game Project boots and its files are served at /',
   assert.equal(await res.text(), '# Design\n\nNo code here.\n');
 });
 
+test('on Node older than 26 the Studio exits, saying which Node it needs', async () => {
+  const fakeNode24 = `data:text/javascript,Object.defineProperty(process.versions, 'node', { value: '24.1.0' })`;
+  const { code, output } = await runStudio(fixture('static-only'), { nodeArgs: ['--import', fakeNode24] });
+  assert.equal(code, 1);
+  assert.match(output, /needs Node 26 or newer; this is Node 24\.1\.0/);
+});
+
 test('files outside the Game Project are not served', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);

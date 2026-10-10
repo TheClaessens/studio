@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 // Plain JS entry so `npm i -g` / `npx` work: Node refuses to strip types under node_modules,
 // so when installed there we strip our own .ts files with a load hook.
-import { registerHooks, stripTypeScriptTypes } from 'node:module';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+// Imports are dynamic so an older Node reaches the version check instead of failing to link.
+if (Number(process.versions.node.split('.')[0]) < 26) {
+  console.error(`\nstudio: needs Node 26 or newer; this is Node ${process.versions.node}.\n`);
+  process.exit(1);
+}
+const { registerHooks, stripTypeScriptTypes } = await import('node:module');
+const { readFileSync } = await import('node:fs');
+const { fileURLToPath } = await import('node:url');
 
 const pkg = new URL('../', import.meta.url).href;
 if (pkg.includes('/node_modules/')) {
