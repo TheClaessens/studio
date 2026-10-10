@@ -1,0 +1,6 @@
+{
+  "$schema": "http://localhost:5170/__studio/schema/studio.json",
+  "studio": "1.x",
+  "name": "Promo Example",
+  "out": { "promo": "promo/out" }
+}

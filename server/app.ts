@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { fileURLToPath } from 'node:url';
 import { serveFile, send } from './static.ts';
 import { schema } from './schema.ts';
+import { out } from './out.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -10,6 +11,8 @@ export type Studio = { root: string; manifest: Manifest };
 type Handler = (req: IncomingMessage, res: ServerResponse, rest: string, studio: Studio) => void | Promise<void>;
 
 const ui = fileURLToPath(new URL('../dist/ui', import.meta.url));
+const kits = fileURLToPath(new URL('../kits', import.meta.url));
+const examples = fileURLToPath(new URL('../examples', import.meta.url));
 const json = (res: ServerResponse, body: unknown) => send(res, 200, JSON.stringify(body, null, 2), 'application/json; charset=utf-8');
 
 const surfaceSections = { Assets: 'assets', Feedback: 'feedback', Play: 'play', Playtests: 'playtests', Media: 'media', Docs: 'docs' } as const;
@@ -27,6 +30,9 @@ function surfaces(manifest: Manifest) {
 const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/schema/studio.json', (_req, res) => json(res, schema)],
   ['/__studio/surfaces', (_req, res, _rest, { manifest }) => json(res, surfaces(manifest))],
+  ['/__studio/kits/', (_req, res, rest) => serveFile(res, kits, rest)],
+  ['/__studio/examples/', (_req, res, rest) => serveFile(res, examples, rest)],
+  ['/__studio/out/', out],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (_req, res, rest, { root }) => serveFile(res, root, rest)],
 ];
