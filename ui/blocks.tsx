@@ -57,6 +57,8 @@ const verdictOf = (text: string): { verdict: Verdict; rest: string } | undefined
     if (m?.index === 0) return { verdict, rest: s.slice(m[0].length) };
   }
 };
+/** A scorecard's persona cell, `Mila`, `**mila** (cozy)` or `01 Mila · cozy casual`, as a persona id. */
+const personaIdOf = (text: string) => text.replace(/\*/g, '').trim().replace(/^\d+\s+/, '').split(/[\s(—·-]/)[0].toLowerCase();
 const score = (text: string) => text.match(/^\**\s*(\d+(?:\.\d+)?)\s*(?:\/\s*10)?\s*\**$/)?.[1];
 
 /** Table columns the skills' templates name: severity, verdict, who raised it, persona and 0–10 scores. */
@@ -97,9 +99,9 @@ function decorateTable(table: TableNode, scorecard: boolean): TableNode {
         const rest = extra.join(', ');
         return { type: 'tableCell', children: [inline('raised', { ids: people.join(', ') }), ...(rest ? [{ type: 'text', value: ` ${rest}` } as InlineNode] : [])] };
       }
-      if (i === persona && t && !mean) return { type: 'tableCell', children: [inline('persona', { id: t.split(/[\s(—-]/)[0].toLowerCase() })] };
+      if (i === persona && t && !mean) return { type: 'tableCell', children: [inline('persona', { id: personaIdOf(t) })] };
       if (scores.includes(i) && score(t) && mean && !cell(c)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: '', computed: '1' })] };
-      if (scores.includes(i) && score(t)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: mean ? '' : cell(row[persona]).split(/[\s(—-]/)[0].toLowerCase() })] };
+      if (scores.includes(i) && score(t)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: mean ? '' : personaIdOf(cell(row[persona])) })] };
       return c;
     });
   });
@@ -176,7 +178,7 @@ const panelOf = (children: BlockNode[]) => {
     if (b.type === 'heading') heading = plain(b.children).toLowerCase();
     if (b.type === 'table' && heading.includes('scorecard')) {
       const col = b.header.findIndex((c) => cell(c).toLowerCase() === 'persona');
-      if (col >= 0) return b.rows.map((r) => cell(r[col]).split(/[\s(—-]/)[0].replace(/\*/g, '').toLowerCase()).filter((id) => id && id !== 'mean');
+      if (col >= 0) return b.rows.map((r) => personaIdOf(cell(r[col]))).filter((id) => id && id !== 'mean');
     }
   }
   return [];

@@ -267,7 +267,7 @@ test('a locked design spec shows its blocks with the same anchors; the synthesis
   const report = [
     '---', 'kind: playtest-report', 'round: 2', '---', '# Arena · Round 2 · Synthesis',
     '**Build:** v1.2 · **Testers:** 2 AI personas (Sonnet), ~12 hand-drafted runs + 40 batch runs, 30 screenshots', '',
-    '## 2. Scorecard', '| Persona | Fun | Domain score |', '|---|---|---|', '| mila | 8 | 6 |', '| rhea | 6 | 7 |', '| **Mean** | | |', '',
+    '## 2. Scorecard', '| Persona | Fun | Domain score |', '|---|---|---|', '| mila | 8 | 6 |', '| 02 Rhea · challenge seeker | 6 | 7 |', '| **Mean** | | |', '',
   ].join('\n');
   const mila = ['---', 'kind: persona-report', 'persona: mila', '---', '# Mila', '**Verdict (in character).** Pretty, and I felt strong.', 'Fun: 7.5/10 · Would play again tomorrow: yes · Domain score (epic feel): 6.5/10', ''].join('\n');
   const dir = tempProject({
@@ -299,6 +299,8 @@ test('a locked design spec shows its blocks with the same anchors; the synthesis
 
   await browser.open(`${studio.url}/__studio/?r#Playtests/playtest/round-2/REPORT.md`);
   const stats = await browser.evaluate(until(`document.querySelector('.stats') && document.querySelector('.stats').innerText`));
+  // A persona cell may lead with the report's number (`02 Rhea · …`).
+  assert.deepEqual(await browser.evaluate(`[...document.querySelectorAll('.stats__panel [role=img]')].map((e) => e.getAttribute('aria-label'))`), ['Mila', 'Rhea']);
   assert.match(stats, /AI personas\s*2[\s\S]*Runs\s*12[\s\S]*Batch runs\s*40[\s\S]*Screenshots\s*30/);
   // An empty Mean row is computed from the scores above it.
   assert.deepEqual(await browser.evaluate(`[...document.querySelectorAll('tr:last-child .score')].map((s) => s.innerText.trim())`), ['7', '6.5']);
