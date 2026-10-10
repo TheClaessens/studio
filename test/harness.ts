@@ -1,10 +1,11 @@
-// Seam-1 harness: run `studio <dir>` as a child process and talk to it over HTTP.
+// Test harness: run `studio <dir>` as a child process and talk to it over HTTP; `openBrowser` for UI smoke tests.
 import { spawn } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
-import { existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findBrowser, launchBrowser } from '../server/cdp.ts';
 
 const bin = fileURLToPath(new URL('../bin/studio.js', import.meta.url));
 export const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
@@ -42,12 +43,11 @@ export function runStudio(dir: string, { check = false, nodeArgs = [] as string[
 }
 
 /** Seam-2 tests need a Chrome/Chromium/Edge: `STUDIO_BROWSER`, or one in the usual places. Skip reason when none. */
-export const noBrowser =
-  process.env.STUDIO_BROWSER ||
-  ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser']
-    .some((p) => existsSync(p))
-    ? false
-    : 'no Chrome/Chromium/Edge found (set STUDIO_BROWSER)';
+export const noBrowser = findBrowser() ? false : 'no Chrome/Chromium/Edge found (set STUDIO_BROWSER)';
+
+/** A headless browser page for UI smoke tests (`{ skip: noBrowser }`): `open(url)`, `evaluate(expr)`, `screenshot()`,
+ *  `pageErrors`. Call `close()` when done. */
+export const openBrowser = () => launchBrowser(findBrowser()!);
 
 /** Writes a throwaway Game Project: `{ 'studio.json': {...}, 'docs/a.md': '# A' }`. */
 export function tempProject(files: Record<string, unknown>) {

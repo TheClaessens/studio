@@ -1,32 +1,14 @@
 // `studio check <game-dir>`: in a real headless browser, loads the asset catalogue and captures its first asset's view
 // (`assets`, with `assets.capture` if declared), and runs the Kit self-test (PT.init → start → play → choose → shot →
 // batch) against the Game Project's adapter (`play.adapter`) on its page (`play.entry`), then captures that page.
-// Drives Chrome/Chromium/Edge over the DevTools protocol with Node's built-in WebSocket: no browser dependency.
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { basename, delimiter, join, resolve } from 'node:path';
+// Drives the browser through cdp.ts.
+import { existsSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
+import { findBrowser, launchBrowser, type Browser } from './cdp.ts';
 import { createStudioServer } from './app.ts';
 import { loadManifest, type Manifest } from './manifest.ts';
 import { loadCatalogue, type Asset } from './catalogue.ts';
 import { viewTemplate, viewUrl } from './view.ts';
-
-const browserPaths = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-];
-const browserNames = ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'microsoft-edge'];
-
-/** `STUDIO_BROWSER`, else the first Chrome/Chromium/Edge found in the usual places or on PATH. */
-function findBrowser(): string | undefined {
-  if (process.env.STUDIO_BROWSER) return process.env.STUDIO_BROWSER;
-  const onPath = (process.env.PATH ?? '').split(delimiter).flatMap((dir) => browserNames.map((n) => join(dir, n)));
-  return [...browserPaths, ...onPath].find((p) => existsSync(p));
-}
 
 type Step = [name: string, body: string];
 // Each body runs in the page as an async function with `PT` in scope; returning `{ error }` or throwing fails the step.
@@ -104,52 +86,27 @@ export async function runCheck(root: string): Promise<number> {
   const server = createStudioServer({ root, manifest });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  const profile = mkdtempSync(join(tmpdir(), 'studio-check-'));
-  const browser = spawn(browserPath, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', 'about:blank']);
-  let ws: WebSocket | undefined;
+  let browser: Browser | undefined;
   let step = 'browser';
   try {
-    const endpoint = await new Promise<string>((res, rej) => {
-      let err = '';
-      browser.stderr.on('data', (d) => { err += d; const m = err.match(/DevTools listening on (ws:\/\/\S+)/); if (m) res(m[1]); });
-      browser.on('error', rej);
-      browser.on('exit', (code) => rej(new Error(`the browser exited (${code}):\n${err}`)));
-      setTimeout(() => rej(new Error(`the browser did not start in 20 s:\n${err}`)), 20000);
-    });
-    const targets = await (await fetch(`http://${new URL(endpoint).host}/json/list`)).json();
-    ws = new WebSocket(targets.find((t: { type: string }) => t.type === 'page').webSocketDebuggerUrl);
-    await new Promise((r, j) => { ws!.onopen = r; ws!.onerror = j; });
-
-    let id = 0;
-    const pending = new Map<number, (m: any) => void>();
-    const events = new Map<string, () => void>();
-    const pageErrors: string[] = [];
-    ws.onmessage = (e) => {
-      const m = JSON.parse(e.data);
-      if (m.method === 'Runtime.exceptionThrown') pageErrors.push(m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text);
-      if (m.method) events.get(m.method)?.();
-      pending.get(m.id)?.(m);
-    };
-    const cdp = (method: string, params = {}) => new Promise<any>((r) => { const i = ++id; pending.set(i, r); ws!.send(JSON.stringify({ id: i, method, params })); });
-    await cdp('Runtime.enable');
-    await cdp('Page.enable');
-
+    const page = (browser = await launchBrowser(browserPath));
     const open = async (path: string) => {
       step = 'open';
-      const loaded = new Promise<void>((r) => events.set('Page.loadEventFired', r));
-      await cdp('Page.navigate', { url: `${base}/${path.replace(/^\//, '')}` });
-      await loaded;
+      await page.open(`${base}/${path.replace(/^\//, '')}`);
       console.log(`✓ open ${path}`);
     };
     /** Evaluates `body` (an async function body, `PT` in scope) as step `name`; `{ error }` or a throw fails it. */
     const run = async (name: string, body: string) => {
       step = name;
       const expression = `(async () => { const PT = window.__studioCheck; ${body} })().then((v) => JSON.parse(JSON.stringify(v ?? null)))`;
-      const r = await cdp('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, timeout: 120000 });
-      const thrown = r.result?.exceptionDetails;
-      const value = r.result?.result?.value;
-      const error = thrown ? (thrown.exception?.description ?? thrown.text) : r.error ? r.error.message : value?.error;
-      if (error) throw new Error(`${error}${pageErrors.length ? `\npage errors:\n  ${pageErrors.join('\n  ')}` : ''}`);
+      let value, error;
+      try {
+        value = await page.evaluate(expression);
+        error = value?.error;
+      } catch (err) {
+        error = (err as Error).message;
+      }
+      if (error) throw new Error(`${error}${page.pageErrors.length ? `\npage errors:\n  ${page.pageErrors.join('\n  ')}` : ''}`);
       return value;
     };
 
@@ -179,11 +136,8 @@ export async function runCheck(root: string): Promise<number> {
   } catch (err) {
     return fail(`failed at step "${step}": ${(err as Error).message}`);
   } finally {
-    ws?.close();
-    browser.kill();
+    await browser?.close();
     server.close();
     server.closeAllConnections();
-    if (browser.exitCode === null && browser.pid) await new Promise((r) => browser.once('exit', r));
-    rmSync(profile, { recursive: true, force: true, maxRetries: 3 });
   }
 }
