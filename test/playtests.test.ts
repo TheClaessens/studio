@@ -7,7 +7,7 @@ import { fixture, startStudio, tempProject, postJson } from './harness.ts';
 
 const p = 'playtest/';
 
-test('rounds are listed latest first, with layout files marked as markdown and the rest raw', async (t) => {
+test('rounds are listed latest first, and every markdown file, in a round or loose, is marked as markdown', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);
 
@@ -28,12 +28,12 @@ test('rounds are listed latest first, with layout files marked as markdown and t
         files: [
           { path: `${p}round-1/01-mila.md`, markdown: true },
           { path: `${p}round-1/06-dex-data.json`, markdown: false },
-          { path: `${p}round-1/NEXT.md`, markdown: false },
+          { path: `${p}round-1/NEXT.md`, markdown: true },
           { path: `${p}round-1/REPORT.md`, markdown: true },
         ],
       },
     ],
-    files: [{ path: `${p}BRIEF.md`, markdown: false }],
+    files: [{ path: `${p}BRIEF.md`, markdown: true }],
   });
 });
 
@@ -92,21 +92,24 @@ test('a listed playtest file is read by its Game Project path; anything else is 
   }
 });
 
-test("the skill's default rounds/round-N layout is found too; no section lists nothing", async (t) => {
+test("the skill's default rounds/round-N layout is found too, without the out folder; no section lists nothing", async (t) => {
   const dir = tempProject({
-    'studio.json': { studio: '1.x', name: 'S', playtests: 'playtest' },
+    'studio.json': { studio: '1.x', name: 'S', playtests: 'playtest', out: { playtest: 'playtest/out' } },
     'playtest/rounds/round-1/REPORT.md': '# R',
-    'playtest/rounds/round-1/shots/a.md': '# not layout',
+    'playtest/rounds/round-1/shots/a.md': '# notes',
+    'playtest/out/mila-boss.png': 'png',
+    'playtest/PERSONAS.md': '# Personas',
   });
   const studio = await startStudio(dir);
   t.after(studio.stop);
   assert.deepEqual(await (await fetch(`${studio.url}/__studio/playtests`)).json(), {
     rounds: [{ name: 'round-1', files: [
       { path: 'playtest/rounds/round-1/REPORT.md', markdown: true },
-      { path: 'playtest/rounds/round-1/shots/a.md', markdown: false },
+      { path: 'playtest/rounds/round-1/shots/a.md', markdown: true },
     ] }],
-    files: [],
+    files: [{ path: 'playtest/PERSONAS.md', markdown: true }],
   });
+  assert.equal((await fetch(`${studio.url}/__studio/playtests/playtest/out/mila-boss.png`)).status, 404); // a shot is Media
 
   const none = await startStudio(tempProject({ 'studio.json': { studio: '1.x', name: 'N' }, 'round-1/REPORT.md': '# R' }));
   t.after(none.stop);
