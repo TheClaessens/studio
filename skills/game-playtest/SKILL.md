@@ -117,6 +117,8 @@ Copy `references/brief-template.md` to the project as `BRIEF.md` and fill in:
 
 The brief carries the **report template**, including a machine-readable findings JSON block, and the evidence tags **[seen] [data] [read] [inferred] [assisted] [jumped]**.
 
+**A project that already has a `BRIEF.md`** (any round after the first) keeps its game-specific parts, but its report template, "Shots and links" section and frontmatter block must match `references/brief-template.md` before every round: personas copy whatever template the brief holds, and the Studio shows a report as its persona's only when it starts with that frontmatter. Diff the two and bring the brief's copy up to date. The same goes for `PERSONAS.md`: every persona on the panel needs its `persona` block.
+
 ### 5. Launch the panel
 Spawn every persona in **one message**, in the background, with the model per persona. Use the launch prompt in `references/protocol.md`. Each persona:
 - uses its **own tab**: it creates one, passes its `tabId` everywhere, and never touches other tabs;
@@ -139,6 +141,8 @@ In the reference round this caught all three kinds:
 - boss fights that bots made longer by kiting.
 
 ### 7. Synthesise the report
+Check each persona report first: it starts with the `kind: persona-report` frontmatter (`round`, and `persona` matching the file name), and its shots are ``(shot: `path`)`` references to files that exist. Add a missing frontmatter block yourself; it is mechanical.
+
 Write `rounds/round-N/REPORT.md` with the template in `references/protocol.md`. It contains:
 1. An executive summary.
 2. A persona scorecard.

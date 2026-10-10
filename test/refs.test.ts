@@ -10,7 +10,7 @@ const synthesis = [
 const mila = [
   '---', 'kind: persona-report', 'round: 1', 'persona: mila', '---', '# Mila', '',
   '## Pain points', '1. **Where am I?** (shot: `playtest/out/mila-boss.png` · caption: "Can you see me?" · at: 0.42,0.55)', '',
-  '## Highlights', '- Pretty crowds (shots: `mila-crowd.png`, `missing.png`)', '',
+  '## Highlights', '- Pretty crowds (shots: `mila-crowd.png`, `missing.png`)', '- Calm (shot: `mila-calm`)', '',
 ].join('\n');
 
 test('links between docs and reports, and shot references, are indexed by the Pin anchor they sit under', async (t) => {
@@ -22,6 +22,7 @@ test('links between docs and reports, and shot references, are indexed by the Pi
     'playtest/rounds/round-1/01-rhea.md': '# Rhea\n',
     'playtest/out/mila-boss.png': 'png',
     'playtest/out/mila-crowd.png': 'png',
+    'playtest/out/mila-calm.png': 'png',
   });
   const studio = await startStudio(dir);
   t.after(studio.stop);
@@ -43,5 +44,7 @@ test('links between docs and reports, and shot references, are indexed by the Pi
     'playtest/out/mila-boss.png': { takenBy: 'mila', usedIn: [{ surface: 'Playtests', path: `${r}01-mila.md`, anchor: 'pain-points/1', label: 'Where am I?', ref: 'playtest/out/mila-boss.png', caption: 'Can you see me?', at: [0.42, 0.55] }] },
     // A bare file name finds the one Media file of that name; a shot that isn't Media is left out.
     'playtest/out/mila-crowd.png': { takenBy: 'mila', usedIn: [{ surface: 'Playtests', path: `${r}01-mila.md`, anchor: 'highlights', label: 'Highlights', ref: 'mila-crowd.png' }] },
+    // A name without an extension is a PT.shot screenshot.
+    'playtest/out/mila-calm.png': { takenBy: 'mila', usedIn: [{ surface: 'Playtests', path: `${r}01-mila.md`, anchor: 'highlights', label: 'Highlights', ref: 'mila-calm' }] },
   });
 });
