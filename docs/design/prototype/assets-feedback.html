@@ -1,0 +1,284 @@
+<!doctype html>
+<!--
+  PROTOTYPE, throwaway (branch prototype/assets-feedback). Not Studio code, not shipped.
+  Question: how should viewing an asset and pinning Feedback to it (asset + pose) look and behave?
+  Three variants of the Studio Assets Surface, switchable via ?variant=A|B|C (or ← →):
+    A  Workbench    asset tree | viewer + pose strip | feedback for this asset
+    B  Inbox-first  feedback list drives the viewer; new items are drafted from the current view
+    C  Annotate     full-bleed viewer, press F to freeze a frame, drop a marker, type a remark
+  Run: python3 -m http.server 8080   then open http://localhost:8080/dev/studio-prototype.html
+  The catalogue is built the way dev/studio/catalogue.js would (walk defineCreature exports + HEROES).
+  Feedback lives in memory only; every item shows the exact markdown file the Studio would write.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Studio prototype: Assets + Feedback</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+<style>
+  :root { --bg:#14161a; --panel:#1c1f25; --line:#2c313a; --text:#e6e8eb; --dim:#8b93a1; --acc:#f0a63a; --ok:#5fbf7a; --warn:#e2665c; --blue:#5aa2e8; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 Inter, system-ui, sans-serif; }
+  button { font:inherit; color:var(--text); background:#272b33; border:1px solid var(--line); border-radius:5px; padding:4px 9px; cursor:pointer; }
+  button:hover { border-color:var(--dim); } button.on { background:var(--acc); color:#111; border-color:var(--acc); }
+  textarea, input[type=text] { font:inherit; color:var(--text); background:#111317; border:1px solid var(--line); border-radius:5px; padding:6px; width:100%; }
+  iframe { border:0; width:100%; height:100%; display:block; background:#222; }
+  pre.file { background:#0e1013; border:1px solid var(--line); border-radius:5px; padding:8px; font:11px/1.45 ui-monospace, Menlo, monospace; white-space:pre-wrap; color:#b9c0cc; margin:6px 0 0; }
+  .dim { color:var(--dim); } .chip { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; border:1px solid var(--line); }
+  .st-open { color:var(--acc); border-color:var(--acc); } .st-addressed { color:var(--blue); border-color:var(--blue); } .st-closed { color:var(--dim); }
+  .stale { color:var(--warn); border-color:var(--warn); }
+  .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .shot { width:100%; border-radius:4px; border:1px solid var(--line); display:block; }
+  h3 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+  #switcher { position:fixed; bottom:12px; left:50%; transform:translateX(-50%); z-index:99; background:#fff; color:#111; border-radius:20px; padding:5px 8px; display:flex; gap:8px; align-items:center; box-shadow:0 4px 18px #0009; font-weight:600; }
+  #switcher button { background:#111; color:#fff; border:0; border-radius:12px; padding:2px 10px; }
+  /* A */
+  .A { display:grid; grid-template-columns:220px 1fr 340px; height:100vh; }
+  .A .tree { overflow:auto; border-right:1px solid var(--line); padding:8px; }
+  .A .tree div.g { margin-top:8px; color:var(--dim); font-size:11px; text-transform:uppercase; }
+  .A .tree div.a { padding:3px 6px; border-radius:4px; cursor:pointer; display:flex; justify-content:space-between; }
+  .A .tree div.a:hover { background:#232730; } .A .tree div.a.sel { background:#2d3340; }
+  .A .stage { display:grid; grid-template-rows:1fr auto; min-width:0; }
+  .A .poses { border-top:1px solid var(--line); padding:8px; }
+  .A .side { border-left:1px solid var(--line); overflow:auto; padding:10px; display:flex; flex-direction:column; gap:10px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:8px; }
+  /* B */
+  .B { display:grid; grid-template-columns:380px 1fr; height:100vh; }
+  .B .inbox { border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .B .tabs { padding:8px; border-bottom:1px solid var(--line); }
+  .B .list { overflow:auto; flex:1; }
+  .B .item { padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; display:grid; grid-template-columns:72px 1fr; gap:8px; }
+  .B .item.sel { background:#232832; } .B .item img { width:72px; border-radius:3px; }
+  .B .right { display:grid; grid-template-rows:auto 1fr auto; min-width:0; }
+  .B .bar { padding:8px; border-bottom:1px solid var(--line); }
+  .B .detail { border-top:1px solid var(--line); padding:10px; max-height:45vh; overflow:auto; }
+  /* C */
+  .C { position:relative; height:100vh; }
+  .C .hud { position:absolute; left:10px; top:10px; right:10px; display:flex; justify-content:space-between; pointer-events:none; }
+  .C .hud > * { pointer-events:auto; background:#000a; border-radius:6px; padding:6px 8px; }
+  .C .timeline { position:absolute; left:10px; right:10px; bottom:54px; background:#000b; border-radius:6px; padding:8px; }
+  .C .timeline .track { display:flex; gap:4px; }
+  .C .timeline .seg { flex:1; position:relative; text-align:center; padding:4px 0; border-radius:4px; background:#2a2e36; cursor:pointer; font-size:11px; }
+  .C .timeline .seg.sel { background:#475066; }
+  .C .timeline .seg i { position:absolute; top:-6px; width:9px; height:9px; border-radius:50%; background:var(--acc); transform:translateX(-50%); }
+  .C .freeze { position:absolute; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; gap:16px; padding:30px; }
+  .C .freeze .pic { position:relative; max-width:65vw; cursor:crosshair; } .C .freeze .pic img { max-width:65vw; max-height:80vh; display:block; }
+  .C .marker { position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%; border:3px solid var(--acc); box-shadow:0 0 0 2px #000; }
+  .C .drawer { position:absolute; top:50px; right:10px; width:330px; max-height:calc(100vh - 170px); overflow:auto; background:#000c; border-radius:6px; padding:8px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="switcher"><button id="prev">←</button><span id="vlabel"></span><button id="next">→</button></div>
+<script type="module">
+import { HEROES } from '../src/game/heroes/index.js';
+
+// ---------- catalogue: what dev/studio/catalogue.js would return: [{ id, name, group, anchors }] ----------
+const SETS = ['greenskins', 'warband', 'wyrmkin'];
+const HERO_ANCHORS = ['idle', 'walk', 'run', 'strafe', 'back', 'hold', 'shot', 'throw', 'heavy', 'nova', 'channel', 'dash', 'arrive', 'death', 'victory', 'fidget'];
+const nice = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+const rangeOf = (a) => ['walk', 'run', 'strafe', 'back'].includes(a) ? [0, 1.6] : a === 'idle' || a === 'hold' || a === 'hit' ? null : [0, 1];
+const catalogue = [];
+for (const set of SETS) {
+  const mod = await import(`../src/game/creatures/${set}.js`);
+  for (const [k, d] of Object.entries(mod)) {
+    if (!d?.boneCount || !d.spec) continue;
+    // ponytail: anchors sniffed from animate() source; a real catalogue.js would declare them per creature
+    const acts = [...new Set([...String(d.spec.animate).matchAll(/action === '(\w+)'/g)].map((m) => m[1]))];
+    catalogue.push({ id: `${set}/${k}`, name: nice(k), group: set, anchors: ['idle', 'walk', ...acts, 'hit', 'die'].map((a) => ({ name: a, range: rangeOf(a) })) });
+  }
+}
+for (const [hero, d] of Object.entries(HEROES)) {
+  const k = Object.keys(await import(`../src/game/heroes/${hero}.js`)).find((e) => e.endsWith('Hero'));
+  catalogue.push({ id: `heroes/${hero}`, name: nice(hero), group: 'heroes', anchors: HERO_ANCHORS.map((a) => ({ name: a, range: rangeOf(a) })), _set: `../heroes/${hero}`, _ids: k });
+}
+const byId = Object.fromEntries(catalogue.map((a) => [a.id, a]));
+
+// ---------- the Game Adapter view template (studio.json assets.view), driven by URL only ----------
+// Finding: Riftbound's viewer has no separate {t}; the position inside an anchor is the pose token's value.
+const VIEW = 'creatures.html?set={set}&ids={ids}&poses={pose}&zoom=2.6&ref=none';
+const poseToken = (anchor, t) => t == null ? anchor : `${anchor}:${(+t).toFixed(2)}`;
+function viewUrl(id, anchor, t) {
+  const a = byId[id]; if (!a) return 'about:blank';
+  const [set, ids] = a._set ? [a._set, a._ids] : id.split('/');
+  return VIEW.replace('{set}', set).replace('{ids}', ids).replace('{pose}', poseToken(anchor, t));
+}
+// Default screenshot: the iframe's largest canvas. Riftbound's viewer renders on demand, so the capture
+// override (hooks/view `capture(win)`) renders a frame first and reads it in the same task.
+async function capture(frame) {
+  await frame.ready;
+  const win = frame.contentWindow;
+  win.engine?.render();
+  const cs = [...win.document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height);
+  return cs[0]?.toDataURL('image/png') ?? null;
+}
+// the viewer renders ~a beat after load (view().then(view)); give it that beat
+const loaded = (frame) => new Promise((r) => frame.addEventListener('load', () => setTimeout(r, 600), { once: true }));
+
+// ---------- feedback: in memory, one "file" per item (remark + one Pin) ----------
+const AUTHOR = 'Thomas Claessens'; // from git config in the real Studio
+const stamp = (d) => d.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').split('-').slice(0, 5).join('-');
+const feedback = [];
+function makeItem({ id, anchor, t, remark, shot, marker, created = new Date(), status = 'open', resolution, label }) {
+  const a = byId[id];
+  const name = `${stamp(created)}-${slug(remark)}`;
+  return { name, status, created, author: AUTHOR, remark: [remark], resolution,
+    pin: { kind: 'asset', id, anchor, t, label: label ?? `${a?.name ?? id} · ${poseToken(anchor, t)}`, screenshot: shot ? `${name}.png` : null, marker }, shot };
+}
+function fileText(it) {
+  const p = it.pin;
+  return `feedback/${it.name}.md\n---\nstatus: ${it.status}\npin:\n  kind: asset\n  id: ${p.id}\n  anchor: ${p.anchor}${p.t != null ? `\n  t: ${p.t}` : ''}${p.marker ? `\n  marker: [${p.marker.map((v) => v.toFixed(2))}]` : ''}\n  label: "${p.label}"${p.screenshot ? `\n  screenshot: ${p.screenshot}` : ''}\nauthor: ${it.author}\ncreated: ${it.created.toISOString().slice(0, 16)}\n---\n${it.remark.join('\n\n---\n\n')}${it.resolution ? `\n\n## Resolution\n${it.resolution}` : ''}\n`;
+}
+const stale = (it) => !byId[it.pin.id];
+const statusChip = (it) => `<span class="chip st-${it.status}">${it.status}</span>${stale(it) ? ' <span class="chip stale">pin not found</span>' : ''}`;
+function transition(it, to) {
+  if (to === 'reopen') { const r = prompt('Reopen: add a remark'); if (!r) return; it.remark.push(r); it.status = 'open'; }
+  else it.status = to;
+  render();
+}
+// actions a human gets; "addressed" is normally the agent's move, simulated here
+const actions = (it) => it.status === 'open' ? `<button data-act="addressed">simulate agent: addressed</button>`
+  : it.status === 'addressed' ? `<button data-act="closed">close</button><button data-act="reopen">reopen…</button>`
+  : `<button data-act="reopen">reopen…</button>`;
+function wireActions(root, it) { root.querySelectorAll('[data-act]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); if (b.dataset.act === 'addressed') it.resolution ??= 'Clamped the club arc so it clears the shoulder (commit 3f2c1ab).'; transition(it, b.dataset.act); }); }
+
+// seed: one open, one addressed, one with a stale Pin
+const T0 = Date.now();
+feedback.push(makeItem({ id: 'greenskins/goblinGrunt', anchor: 'attack', t: 0.5, remark: 'Club clips through the shoulder at the top of the swing.', created: new Date(T0 - 864e5) }));
+feedback.push(makeItem({ id: 'wyrmkin/colossus', anchor: 'walk', t: 0.8, remark: 'Feet slide on the second step, stride looks too short.', created: new Date(T0 - 3 * 864e5), status: 'addressed', resolution: 'Raised stride to 2.1 (commit a91d0e4).' }));
+feedback.push(makeItem({ id: 'warband/emberLobber', anchor: 'idle', remark: 'Idle sway is too fast, reads as nervous.', created: new Date(T0 - 5 * 864e5), label: 'Ember Lobber · idle' }));
+
+// ---------- shared view state ----------
+const S = { id: 'greenskins/goblinGrunt', anchor: 'attack', t: 0.5, sel: null, filter: 'open', freeze: null, drawer: true };
+const anchorOf = () => byId[S.id]?.anchors.find((a) => a.name === S.anchor) ?? { name: S.anchor, range: null };
+const forAsset = (id) => feedback.filter((f) => f.pin.id === id);
+const openCount = (id) => forAsset(id).filter((f) => f.status !== 'closed').length;
+function go(id, anchor, t) { S.id = id; S.anchor = anchor; S.t = t; render(); }
+
+const app = document.getElementById('app');
+function mountFrame(host) {
+  const f = document.createElement('iframe');
+  f.ready = loaded(f); f.src = viewUrl(S.id, S.anchor, S.t); host.appendChild(f);
+  return f;
+}
+function poseControls() {
+  const a = byId[S.id]; if (!a) return '<span class="dim">asset not in catalogue</span>';
+  const r = anchorOf().range;
+  return `<div class="row">${a.anchors.map((x) => `<button data-anchor="${x.name}" class="${x.name === S.anchor ? 'on' : ''}">${x.name}${forAsset(S.id).some((f) => f.pin.anchor === x.name && f.status !== 'closed') ? ' •' : ''}</button>`).join('')}</div>
+    ${r ? `<div class="row" style="margin-top:6px"><input type="range" min="${r[0]}" max="${r[1]}" step="0.05" value="${S.t ?? r[0]}" style="flex:1" id="scrub"><span style="width:40px">${(+(S.t ?? r[0])).toFixed(2)}</span></div>` : ''}`;
+}
+function wirePose(root) {
+  root.querySelectorAll('[data-anchor]').forEach((b) => b.onclick = () => { const r = byId[S.id].anchors.find((a) => a.name === b.dataset.anchor).range; go(S.id, b.dataset.anchor, r ? r[0] + (r[1] - r[0]) / 2 : null); });
+  const sc = root.querySelector('#scrub'); if (sc) sc.onchange = () => go(S.id, S.anchor, +sc.value);
+}
+function itemCard(it, { showFile = true } = {}) {
+  return `<div class="card" data-item="${it.name}">
+    <div class="row" style="justify-content:space-between"><b>${it.pin.label}</b>${statusChip(it)}</div>
+    ${it.shot ? `<img class="shot" src="${it.shot}" style="margin-top:6px">` : ''}
+    <div style="margin:6px 0">${it.remark.map((r) => `<div>${r}</div>`).join('<hr style="border-color:#333">')}</div>
+    ${it.resolution ? `<div class="dim">Resolution: ${it.resolution}</div>` : ''}
+    <div class="row" style="margin-top:6px"><button data-goto>go to pin</button>${actions(it)}</div>
+    ${showFile ? `<details><summary class="dim">file</summary><pre class="file">${fileText(it)}</pre></details>` : ''}</div>`;
+}
+function wireCards(root) {
+  root.querySelectorAll('[data-item]').forEach((el) => { const it = feedback.find((f) => f.name === el.dataset.item); wireActions(el, it);
+    el.querySelector('[data-goto]')?.addEventListener('click', () => { S.sel = it.name; go(it.pin.id, it.pin.anchor, it.pin.t); }); });
+}
+async function addFromView(frame, remark, marker) {
+  const shot = await capture(frame);
+  const it = makeItem({ id: S.id, anchor: S.anchor, t: S.t, remark, shot, marker });
+  feedback.unshift(it); S.sel = it.name; S.freeze = null; render();
+}
+
+// ---------- A: Workbench ----------
+function A() {
+  app.innerHTML = `<div class="A">
+    <div class="tree">${[...new Set(catalogue.map((a) => a.group))].map((g) => `<div class="g">${g}</div>` + catalogue.filter((a) => a.group === g).map((a) => `<div class="a ${a.id === S.id ? 'sel' : ''}" data-id="${a.id}"><span>${a.name}</span>${openCount(a.id) ? `<span class="chip st-open">${openCount(a.id)}</span>` : ''}</div>`).join('')).join('')}
+      ${feedback.filter(stale).length ? `<div class="g">unresolved pins</div>` + feedback.filter(stale).map((f) => `<div class="a" data-id="${f.pin.id}"><span>${f.pin.label}</span><span class="chip stale">?</span></div>`).join('') : ''}</div>
+    <div class="stage"><div id="fh"></div><div class="poses">${poseControls()}</div></div>
+    <div class="side">
+      <div class="card"><h3>New feedback on this pose</h3><div class="dim" style="margin-bottom:6px">${byId[S.id]?.name ?? S.id} · ${poseToken(S.anchor, S.t)}</div>
+        <textarea id="remark" rows="3" placeholder="What's wrong / what should change?"></textarea>
+        <div class="row" style="margin-top:6px"><button id="pin" class="on">Pin feedback (captures screenshot)</button></div></div>
+      <h3>Feedback on ${byId[S.id]?.name ?? S.id} (${forAsset(S.id).length})</h3>
+      ${forAsset(S.id).map((f) => itemCard(f)).join('') || '<div class="dim">none yet</div>'}
+    </div></div>`;
+  const f = mountFrame(app.querySelector('#fh')); app.querySelector('#fh').style.minHeight = '0';
+  app.querySelectorAll('.tree [data-id]').forEach((el) => el.onclick = () => { const a = byId[el.dataset.id]; const fi = forAsset(el.dataset.id)[0]; go(el.dataset.id, fi?.pin.anchor ?? a?.anchors[0].name ?? 'idle', fi?.pin.t ?? null); });
+  wirePose(app); wireCards(app);
+  app.querySelector('#pin').onclick = () => { const r = app.querySelector('#remark').value.trim(); if (r) addFromView(f, r); };
+}
+
+// ---------- B: Inbox-first ----------
+function B() {
+  const list = feedback.filter((f) => S.filter === 'all' || (S.filter === 'waiting' ? f.status === 'addressed' : f.status === S.filter));
+  const sel = feedback.find((f) => f.name === S.sel);
+  app.innerHTML = `<div class="B">
+    <div class="inbox"><div class="tabs row">${['open', 'waiting', 'closed', 'all'].map((k) => `<button data-filter="${k}" class="${S.filter === k ? 'on' : ''}">${k}${k === 'waiting' ? ` (${feedback.filter((f) => f.status === 'addressed').length})` : ''}</button>`).join('')}</div>
+      <div class="list">${list.map((f) => `<div class="item ${f.name === S.sel ? 'sel' : ''}" data-sel="${f.name}">${f.shot ? `<img src="${f.shot}">` : `<div class="dim" style="font-size:11px">no shot</div>`}<div><div class="row" style="justify-content:space-between"><b>${f.pin.label}</b>${statusChip(f)}</div><div>${f.remark.at(-1)}</div><div class="dim" style="font-size:11px">${f.author} · ${f.created.toLocaleDateString()}</div></div></div>`).join('') || '<div class="dim" style="padding:10px">nothing here</div>'}</div></div>
+    <div class="right">
+      <div class="bar row"><select id="asset">${catalogue.map((a) => `<option value="${a.id}" ${a.id === S.id ? 'selected' : ''}>${a.group} / ${a.name}</option>`).join('')}</select><div style="flex:1">${poseControls()}</div></div>
+      <div id="fh" style="min-height:0"></div>
+      <div class="detail">${sel ? itemCard(sel) : ''}
+        <div class="card" style="margin-top:8px"><h3>Draft from current view</h3><div class="row"><input type="text" id="remark" placeholder="${byId[S.id]?.name} · ${poseToken(S.anchor, S.t)}: remark…" style="flex:1"><button id="pin" class="on">Pin</button></div></div></div>
+    </div></div>`;
+  const f = mountFrame(app.querySelector('#fh'));
+  app.querySelectorAll('[data-filter]').forEach((b) => b.onclick = () => { S.filter = b.dataset.filter; render(); });
+  app.querySelectorAll('[data-sel]').forEach((el) => el.onclick = () => { const it = feedback.find((x) => x.name === el.dataset.sel); S.sel = it.name; go(it.pin.id, it.pin.anchor, it.pin.t); });
+  app.querySelector('#asset').onchange = (e) => { const a = byId[e.target.value]; go(a.id, a.anchors[0].name, null); };
+  wirePose(app); wireCards(app);
+  app.querySelector('#pin').onclick = () => { const r = app.querySelector('#remark').value.trim(); if (r) { S.filter = 'open'; addFromView(f, r); } };
+}
+
+// ---------- C: Annotate ----------
+function C() {
+  const a = byId[S.id], r = anchorOf().range, here = forAsset(S.id);
+  app.innerHTML = `<div class="C"><div id="fh" style="position:absolute;inset:0"></div>
+    <div class="hud"><div class="row"><select id="asset">${catalogue.map((x) => `<option value="${x.id}" ${x.id === S.id ? 'selected' : ''}>${x.group} / ${x.name}</option>`).join('')}</select><span class="dim">press <b>F</b> to freeze & comment · <b>D</b> toggle drawer</span></div>
+      <div><button id="tog">${S.drawer ? 'hide' : 'show'} feedback (${here.filter((f) => f.status !== 'closed').length})</button></div></div>
+    ${S.drawer ? `<div class="drawer">${here.map((f) => itemCard(f)).join('') || '<div class="dim">no feedback on this asset</div>'}</div>` : ''}
+    <div class="timeline"><div class="track">${(a?.anchors ?? []).map((x) => `<div class="seg ${x.name === S.anchor ? 'sel' : ''}" data-anchor="${x.name}">${x.name}${here.filter((f) => f.pin.anchor === x.name && f.status !== 'closed').map((f) => `<i title="${f.remark[0]}" style="left:${x.range && f.pin.t != null ? ((f.pin.t - x.range[0]) / (x.range[1] - x.range[0])) * 100 : 50}%"></i>`).join('')}</div>`).join('')}</div>
+      ${r ? `<div class="row" style="margin-top:6px"><input type="range" min="${r[0]}" max="${r[1]}" step="0.05" value="${S.t ?? r[0]}" style="flex:1" id="scrub"><span>${(+(S.t ?? r[0])).toFixed(2)}</span></div>` : ''}</div>
+    ${S.freeze ? `<div class="freeze"><div class="pic" id="pic"><img src="${S.freeze.shot}">${S.freeze.marker ? `<div class="marker" style="left:${S.freeze.marker[0] * 100}%;top:${S.freeze.marker[1] * 100}%"></div>` : ''}</div>
+      <div style="width:300px"><h3>${a?.name} · ${poseToken(S.anchor, S.t)}</h3><div class="dim" style="margin-bottom:6px">click the frame to drop a marker (optional)</div><textarea id="remark" rows="5" placeholder="remark…"></textarea>
+      <div class="row" style="margin-top:6px"><button id="pin" class="on">Pin</button><button id="cancel">cancel (Esc)</button></div></div></div>` : ''}</div>`;
+  const f = mountFrame(app.querySelector('#fh'));
+  app.querySelector('#asset').onchange = (e) => { const x = byId[e.target.value]; go(x.id, x.anchors[0].name, null); };
+  app.querySelector('#tog').onclick = () => { S.drawer = !S.drawer; render(); };
+  app.querySelectorAll('.seg').forEach((el) => el.onclick = () => { const x = a.anchors.find((y) => y.name === el.dataset.anchor); go(S.id, x.name, x.range ? (x.range[0] + x.range[1]) / 2 : null); });
+  const sc = app.querySelector('#scrub'); if (sc) sc.onchange = () => go(S.id, S.anchor, +sc.value);
+  wireCards(app);
+  if (S.freeze) {
+    app.querySelector('#remark').value = S.freeze.draft ?? ''; app.querySelector('#remark').oninput = (e) => S.freeze.draft = e.target.value; app.querySelector('#remark').focus();
+    app.querySelector('#pic').onclick = (e) => { const b = e.currentTarget.getBoundingClientRect(); S.freeze.marker = [(e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height]; render(); };
+    app.querySelector('#cancel').onclick = () => { S.freeze = null; render(); };
+    app.querySelector('#pin').onclick = () => { const r = app.querySelector('#remark').value.trim(); if (!r) return; const it = makeItem({ id: S.id, anchor: S.anchor, t: S.t, remark: r, shot: S.freeze.shot, marker: S.freeze.marker }); feedback.unshift(it); S.freeze = null; S.drawer = true; render(); };
+  }
+  C.frame = f;
+}
+addEventListener('keydown', async (e) => {
+  if (VARIANT() !== 'C' || e.target.closest?.('input,textarea,select,[contenteditable]')) { if (e.key === 'Escape' && S.freeze) { S.freeze = null; render(); } return; }
+  if (e.key === 'f' && !S.freeze) { e.preventDefault(); S.freeze = { shot: await capture(C.frame), marker: null }; render(); }
+  if (e.key === 'd') { S.drawer = !S.drawer; render(); }
+  if (e.key === 'Escape' && S.freeze) { S.freeze = null; render(); }
+});
+
+// ---------- switcher ----------
+const VARIANTS = { A: 'Workbench', B: 'Inbox-first', C: 'Annotate' };
+const VARIANT = () => new URLSearchParams(location.search).get('variant') ?? 'A';
+function render() {
+  const v = VARIANT();
+  ({ A, B, C })[v]();
+  document.getElementById('vlabel').textContent = `${v} (${VARIANTS[v]})`;
+}
+function cycle(d) { const ks = Object.keys(VARIANTS); const i = (ks.indexOf(VARIANT()) + d + ks.length) % ks.length; const u = new URL(location); u.searchParams.set('variant', ks[i]); history.replaceState(null, '', u); render(); }
+document.getElementById('prev').onclick = () => cycle(-1); document.getElementById('next').onclick = () => cycle(1);
+addEventListener('keydown', (e) => { if (e.target.closest?.('input,textarea,select,[contenteditable]')) return; if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1); });
+render();
+</script>
+</body>
+</html>
