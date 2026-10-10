@@ -32,6 +32,7 @@ export const resolvers: Record<string, (pin: Pin, studio: Studio) => boolean> = 
     !!pin.path &&
     playtestFiles(studio).includes(pin.path) &&
     (!pin.anchor || headingAnchors(readFileSync(join(studio.root, pin.path), 'utf8'), true).includes(pin.anchor)),
+  media: (pin, { root, manifest }) => !!pin.path && globFiles(root, manifest.media).includes(pin.path),
 };
 
 const attachmentTypes: Record<string, string> = {
