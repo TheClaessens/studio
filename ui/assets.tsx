@@ -8,9 +8,10 @@ import './assets.css';
 
 type Anchor = { name: string; range?: [number, number] };
 type Asset = { id: string; name: string; group: string; set?: string; anchors: Anchor[]; file?: string };
-export type Pose = { asset: Asset; anchor: Anchor; t: number; playing: boolean };
+/** `scrubbed`: `t` is a frame the user chose by scrubbing while paused (or a frame Pin restored), so it can be pinned. */
+export type Pose = { asset: Asset; anchor: Anchor; t: number; playing: boolean; scrubbed: boolean };
 
-const start = (asset: Asset): Pose => ({ asset, anchor: asset.anchors[0], t: asset.anchors[0]?.range?.[0] ?? 0, playing: false });
+const start = (asset: Asset): Pose => ({ asset, anchor: asset.anchors[0], t: asset.anchors[0]?.range?.[0] ?? 0, playing: false, scrubbed: false });
 
 
 const assetItems = (items: Item[]) => items.filter((i) => i.pin.kind === 'asset');
@@ -45,7 +46,7 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
       const asset = catalogue.find((a) => a.id === p.get('id'));
       if (!asset) return;
       const anchor = asset.anchors.find((a) => a.name === p.get('anchor'));
-      setPose(anchor ? { asset, anchor, t: p.has('t') ? Number(p.get('t')) : (anchor.range?.[0] ?? 0), playing: false } : start(asset));
+      setPose(anchor ? { asset, anchor, t: p.has('t') ? Number(p.get('t')) : (anchor.range?.[0] ?? 0), playing: false, scrubbed: p.has('t') } : start(asset));
       setShowUnresolved(false);
       history.replaceState(null, '', '#Assets'); // so going to the same pin again is a hash change
     };
@@ -57,6 +58,7 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
   if (error) return <pre className="error">{error}</pre>;
   const groups = Map.groupBy(catalogue, (a) => a.group);
   const openCount = (id: string) => items.filter((i) => i.pin.id === id && i.resolved && i.status === 'open').length;
+  const groupCount = (list: Asset[]) => list.reduce((sum, a) => sum + openCount(a.id), 0);
   const unresolved = items.filter((i) => !i.resolved && i.status !== 'closed');
   const shoot = async () => ({
     screenshot: await dataUrl(await capture(frame.current!.contentWindow!, await loadCapture(assets.capture))),
@@ -67,7 +69,9 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
       <aside className="tree">
         {[...groups].map(([group, list]) => (
           <div key={group}>
-            <h3>{group}</h3>
+            <h3>
+              {group} {groupCount(list) > 0 && <span className="count">{groupCount(list)}</span>}
+            </h3>
             {list.map((a) => (
               <button
                 key={a.id}
@@ -110,11 +114,12 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
 
 type Scope = 'asset' | 'animation' | 'frame';
 
-/** The three Pin scopes. A frame needs a paused, ranged anchor, so its `t` is always one the Studio set;
- *  pinning while playing defaults to the animation. Every scope saves a screenshot and a quoted label. */
+/** The three Pin scopes. A frame needs a ranged anchor the user scrubbed to while paused, so its `t` is always one
+ *  the Studio set from a scrub; otherwise the default is the animation (or the asset). Every scope saves a screenshot
+ *  and a quoted label. */
 function NewFeedback({ pose, shoot, onCreated }: { pose: Pose; shoot: () => Promise<Record<string, string>>; onCreated: () => void }) {
-  const { asset, anchor, t, playing } = pose;
-  const can: Record<Scope, boolean> = { asset: true, animation: !!anchor, frame: !!anchor?.range && !playing };
+  const { asset, anchor, t, playing, scrubbed } = pose;
+  const can: Record<Scope, boolean> = { asset: true, animation: !!anchor, frame: !!anchor?.range && !playing && scrubbed };
   const preferred: Scope = playing ? 'animation' : can.frame ? 'frame' : can.animation ? 'animation' : 'asset';
   const [chosen, setChosen] = useState<Scope>(preferred);
   useEffect(() => setChosen(preferred), [preferred]);
@@ -144,17 +149,17 @@ function Stage({ view: kind, pose, setPose, frame }: { view: string; pose: Pose;
   const [scrub, setScrub] = useState(pose.t);
   useEffect(() => setScrub(pose.t), [pose.t]);
   const { anchor } = pose;
-  const commit = () => setPose({ ...pose, t: scrub });
+  const commit = () => setPose({ ...pose, t: scrub, scrubbed: true });
 
   return (
     <div className="stage">
       <iframe ref={frame} className="view" src={viewUrl(view, pose)} title={pose.asset.name} />
       <div className="anchors">
         {view.includes('{play}') && (
-          <button onClick={() => setPose({ ...pose, playing: !pose.playing })}>{pose.playing ? 'Pause' : 'Play'}</button>
+          <button onClick={() => setPose({ ...pose, playing: !pose.playing, scrubbed: false })}>{pose.playing ? 'Pause' : 'Play'}</button>
         )}
         {pose.asset.anchors.map((a) => (
-          <button key={a.name} className={a.name === anchor?.name ? 'on' : ''} onClick={() => setPose({ ...pose, anchor: a, t: a.range?.[0] ?? 0 })}>
+          <button key={a.name} className={a.name === anchor?.name ? 'on' : ''} onClick={() => setPose({ ...pose, anchor: a, t: a.range?.[0] ?? 0, scrubbed: false })}>
             {a.name}
           </button>
         ))}
