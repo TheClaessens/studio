@@ -1,0 +1,21 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: browser-actions/setup-chrome@v2.2.0
+        id: chrome
+        with:
+          install-dependencies: true
+      - run: npm ci
+      # `studio check` (seam 2) and the UI smoke tests skip without a browser.
+      - run: npm run check
+        env:
+          STUDIO_BROWSER: ${{ steps.chrome.outputs.chrome-path }}

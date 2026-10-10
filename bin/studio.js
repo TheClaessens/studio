@@ -9,7 +9,7 @@ const pkg = new URL('../', import.meta.url).href;
 if (pkg.includes('/node_modules/')) {
   const emitWarning = process.emitWarning;
   process.emitWarning = (warning, ...rest) =>
-    String(warning).includes('stripTypeScriptTypes') ? undefined : emitWarning.call(process, warning, ...rest);
+    String(warning).includes('stripTypeScriptTypes') ? undefined : Reflect.apply(emitWarning, process, [warning, ...rest]);
   registerHooks({
     load(url, context, next) {
       if (!url.startsWith(pkg) || !url.endsWith('.ts')) return next(url, context);

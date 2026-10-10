@@ -12,7 +12,7 @@ import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
 /** `rest` is the decoded path after the route's prefix. */
-type Handler = (req: IncomingMessage, res: ServerResponse, rest: string, studio: Studio) => void | Promise<void>;
+type Handler = (req: IncomingMessage, res: ServerResponse, rest: string, studio: Studio) => unknown;
 
 const ui = fileURLToPath(new URL('../dist/ui', import.meta.url));
 const kits = fileURLToPath(new URL('../kits', import.meta.url));
