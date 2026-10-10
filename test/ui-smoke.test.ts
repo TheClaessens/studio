@@ -254,3 +254,66 @@ test('cross-links: report links jump within the Studio, shots show captioned, do
   assert.match(await browser.evaluate(until(`document.querySelector('.lightbox aside')?.innerText.includes('Used in') && document.querySelector('.lightbox aside').innerText`)), /Taken by\s*Mila[\s\S]*Used in[\s\S]*Can you see me\?/);
   assert.deepEqual(browser.pageErrors, []);
 });
+
+test('a locked design spec shows its blocks with the same anchors; the synthesis shows its stats; ⌘K jumps anywhere', { skip: noBrowser, timeout: 60_000 }, async (t) => {
+  const spec = [
+    '---', 'kind: design-spec', 'version: "1.2"', '---', '# Arena — Game Design v1.2 (LOCKED)', '',
+    '## 1. Pillars', '1. **Readable chaos**: you always find yourself.', '2. **Builds matter**: no single best build.', '',
+    '## 3. Run structure', '| Stage | Biome | Boss |', '|---|---|---|', '| 1 | Forest | Gorrak |', '| 2 | Caves | — |', '',
+    '### Scaling (`m` = stage minutes)', '| Quantity | Formula |', '|---|---|', '| Enemy HP | `base × (1 + a·m)` |', '',
+    '## 5. Classes', '| | Pyromancer | Cryomancer |', '|---|---|---|', '| Starter | Bolt | Shard |', '',
+    '## 12. Meta', '- **Rift Tier** 0–5 unlocks progressively.', '',
+  ].join('\n');
+  const report = [
+    '---', 'kind: playtest-report', 'round: 2', '---', '# Arena · Round 2 · Synthesis',
+    '**Build:** v1.2 · **Testers:** 2 AI personas (Sonnet), ~12 hand-drafted runs + 40 batch runs, 30 screenshots', '',
+    '## 2. Scorecard', '| Persona | Fun | Domain score |', '|---|---|---|', '| mila | 8 | 6 |', '| rhea | 6 | 7 |', '| **Mean** | | |', '',
+  ].join('\n');
+  const mila = ['---', 'kind: persona-report', 'persona: mila', '---', '# Mila', '**Verdict (in character).** Pretty, and I felt strong.', 'Fun: 7.5/10 · Would play again tomorrow: yes · Domain score (epic feel): 6.5/10', ''].join('\n');
+  const dir = tempProject({
+    'studio.json': { studio: '1.x', name: 'Spec', docs: ['DESIGN.md'], playtests: 'playtest' },
+    'DESIGN.md': spec, 'playtest/round-2/REPORT.md': report, 'playtest/round-2/01-mila.md': mila,
+  });
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+  const browser = await openBrowser();
+  t.after(browser.close);
+  const until = (expr: string) => `(async () => { for (const end = Date.now() + 10000; Date.now() < end; await new Promise((r) => setTimeout(r, 100))) { const v = ${expr}; if (v) return v; } return null; })()`;
+
+  await browser.open(`${studio.url}/__studio/?s#Docs/DESIGN.md`);
+  const doc = await browser.evaluate(until(`document.querySelector('.spec-head') && document.querySelector('.reader__rail .locked') && {
+    badge: document.querySelector('.spec-head__badge').innerText, title: document.querySelector('.markdown h1').innerText,
+    ids: [...document.querySelectorAll('.markdown [id]')].map((e) => e.id), pillars: document.querySelectorAll('.pillars li').length,
+    acts: [...document.querySelectorAll('.acts__stage--boss')].map((e) => e.innerText), formula: document.querySelector('.formula')?.innerText,
+    compare: !!document.querySelector('.compare table'), tiers: document.querySelector('.tiers__scale')?.innerText.replace(/\\s+/g, ''),
+  }`));
+  assert.match(doc.badge, /Locked spec\s*· v1\.2/);
+  assert.equal(doc.title, 'Arena — Game Design v1.2');
+  // The blocks change how the spec looks, never its Pin anchors.
+  assert.deepEqual(doc.ids, ['arena--game-design-v12-locked', '1-pillars', '3-run-structure', 'scaling-m--stage-minutes', '5-classes', '12-meta']);
+  assert.equal(doc.pillars, 2);
+  assert.deepEqual(doc.acts, ['1\nBoss · Gorrak']);
+  assert.equal(doc.formula, 'base × (1 + a·m)');
+  assert.ok(doc.compare);
+  assert.equal(doc.tiers, '012345');
+
+  await browser.open(`${studio.url}/__studio/?r#Playtests/playtest/round-2/REPORT.md`);
+  const stats = await browser.evaluate(until(`document.querySelector('.stats') && document.querySelector('.stats').innerText`));
+  assert.match(stats, /AI personas\s*2[\s\S]*Runs\s*12[\s\S]*Batch runs\s*40[\s\S]*Screenshots\s*30/);
+  // An empty Mean row is computed from the scores above it.
+  assert.deepEqual(await browser.evaluate(`[...document.querySelectorAll('tr:last-child .score')].map((s) => s.innerText.trim())`), ['7', '6.5']);
+
+  await browser.open(`${studio.url}/__studio/?v#Playtests/playtest/round-2/01-mila.md`);
+  const scores = await browser.evaluate(until(`document.querySelector('.scores')?.innerText`));
+  assert.match(scores, /“Pretty, and I felt strong\.”/); // the bold lead only labels the verdict
+  assert.match(scores, /Domain score\s*6\.5/);
+
+  // ⌘K: type, Enter, and the route changes.
+  await browser.evaluate(`dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))`);
+  assert.equal(await browser.evaluate(until(`document.querySelector('dialog.palette')?.open`)), true);
+  await browser.evaluate(`(() => { const i = document.querySelector('dialog.palette input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'pillars'); i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  assert.match(await browser.evaluate(until(`document.querySelector('.palette [aria-selected=true]')?.innerText.includes('Pillars') && document.querySelector('.palette [aria-selected=true]').innerText`)), /1\. Pillars/);
+  await browser.evaluate(`document.querySelector('dialog.palette input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+  assert.equal(await browser.evaluate(until(`location.hash === '#Docs/DESIGN.md#1-pillars' && location.hash`)), '#Docs/DESIGN.md#1-pillars');
+  assert.deepEqual(browser.pageErrors, []);
+});

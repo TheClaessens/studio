@@ -64,7 +64,10 @@ function render({ doc, heading, found, options, meta, persona }: ReturnType<type
     if (block.type === 'heading') {
       const id = heading.get(i);
       const Tag = `h${block.depth}` as const;
-      const inner = block.children.map((c, j) => renderInlineReact(c, options, `${j}`));
+      // A locked design spec says so in a badge instead of `(LOCKED)` in its title; the anchor keeps the source text.
+      const locked = meta.kind === 'design-spec' && block.depth === 1 && /\(LOCKED\)/.test(plainText(block.children));
+      const children = locked ? block.children.map((c) => (c.type === 'text' ? { ...c, value: c.value.replace(/\s*\(LOCKED\)/, '') } : c)) : block.children;
+      const inner = children.map((c, j) => renderInlineReact(c, options, `${j}`));
       const head = id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a><Count n={counts[id]} /></Tag> : <Tag key={key}>{inner}</Tag>;
       // A persona report opens with its author: portrait (or sigil) beside the title.
       // A human session is always the human mark, whatever its file is called (D5).
@@ -72,6 +75,15 @@ function render({ doc, heading, found, options, meta, persona }: ReturnType<type
       if (!titled && block.depth === 1 && (human || (persona && meta.kind === 'persona-report'))) {
         titled = true;
         return <PersonaHead key={key} id={human ? 'human' : persona!} human={human} tester={meta.tester} round={meta.round}>{head}</PersonaHead>;
+      }
+      if (locked && !titled) {
+        titled = true;
+        return (
+          <header key={key} className="spec-head">
+            <span className="spec-head__badge"><LockGlyph />Locked spec{meta.version && <span className="dim"> · v{meta.version}</span>}</span>
+            {head}
+          </header>
+        );
       }
       return head;
     }
@@ -81,6 +93,10 @@ function render({ doc, heading, found, options, meta, persona }: ReturnType<type
     return block.type === 'table' ? <div key={key} className="table-scroll">{renderBlockReact(block, options)}</div> : renderBlockReact(block, options, key);
   });
 }
+
+export const LockGlyph = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 11h12v10H6z M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11" /></svg>
+);
 
 /** A persona report's author from PERSONAS.md: portrait, archetype, quote in their voice, and how they set out to play. */
 function PersonaHead({ id, human, tester, round, children }: { id: string; human: boolean; tester?: string; round?: string; children: ReactNode }) {

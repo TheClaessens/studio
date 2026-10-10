@@ -68,10 +68,16 @@ function decorateTable(table: TableNode, scorecard: boolean): TableNode {
   const raised = col((h) => h.startsWith('raised by'));
   const persona = scorecard ? col((h) => h === 'persona') : -1;
   const scores = scorecard ? heads.flatMap((h, i) => (/^(fun|domain)/.test(h) ? [i] : [])) : [];
+  const isMean = (row: TableCellNode[]) => /^\**mean\**$/i.test(cell(row[persona] ?? row[0]));
+  // An empty Mean cell under a score column is the mean of the rows above it.
+  const meanOf = (i: number) => {
+    const vs = table.rows.filter((r) => !isMean(r)).map((r) => Number(score(cell(r[i])))).filter((v) => !Number.isNaN(v));
+    return vs.length ? String(Math.round((vs.reduce((a, b) => a + b, 0) / vs.length) * 10) / 10) : undefined;
+  };
   const rows = table.rows.map((row) => {
-    const mean = /^\**mean\**$/i.test(cell(row[persona] ?? row[0]));
+    const mean = isMean(row);
     return row.map((c, i): TableCellNode => {
-      const t = cell(c);
+      const t = mean && scores.includes(i) && !cell(c) ? (meanOf(i) ?? '') : cell(c);
       if (i === sev && isSeverity(t.toLowerCase())) return { type: 'tableCell', children: [inline('severity', { level: t.toLowerCase() })] };
       const v = i === verdict ? verdictOf(t) : undefined;
       if (v) {
@@ -92,6 +98,7 @@ function decorateTable(table: TableNode, scorecard: boolean): TableNode {
         return { type: 'tableCell', children: [inline('raised', { ids: people.join(', ') }), ...(rest ? [{ type: 'text', value: ` ${rest}` } as InlineNode] : [])] };
       }
       if (i === persona && t && !mean) return { type: 'tableCell', children: [inline('persona', { id: t.split(/[\s(—-]/)[0].toLowerCase() })] };
+      if (scores.includes(i) && score(t) && mean && !cell(c)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: '', computed: '1' })] };
       if (scores.includes(i) && score(t)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: mean ? '' : cell(row[persona]).split(/[\s(—-]/)[0].toLowerCase() })] };
       return c;
     });
@@ -135,15 +142,45 @@ function verdictLine(p: BlockNode, persona: string): ComponentNode | undefined {
   const text = plain(p.children);
   const fun = text.match(/Fun:\s*([\d.]+)\s*\/\s*10/i)?.[1];
   if (!fun) return undefined;
-  const lead = p.children[0]?.type === 'strong' ? plain(p.children[0].children) : text.split(/Fun:/i)[0];
+  // The bold lead is the verdict, unless it only labels it (`**Verdict (in character).** It is gorgeous…`).
+  const strong = p.children[0]?.type === 'strong' ? plain(p.children[0].children) : '';
+  const lead = strong && !/^verdict\b/i.test(strong.trim()) ? strong : (strong ? text.slice(strong.length) : text).split(/Fun:/i)[0];
   return block('scores', {
     persona,
     verdict: lead.trim(),
     fun,
     again: text.match(/again tomorrow\??:\s*([\w/-]+)/i)?.[1] ?? '',
-    domain: text.match(/Domain score:\s*([\w.]+)\s*\/\s*10/i)?.[1] ?? '',
+    // `Domain score (epic feel / intensity): 6.5/10` names its domain; the score is what follows.
+    domain: text.match(/Domain score[^:]*:\s*([\w.]+)\s*\/\s*10/i)?.[1] ?? '',
   });
 }
+
+/** The synthesis header's `**Testers:** N AI personas (…), ~X hand-drafted runs + Y batch runs, Z screenshots`: a
+ *  stat strip with the panel's sigils (from the scorecard). The paragraph stays inside it. */
+function testers(p: BlockNode, panel: string[]): ComponentNode | undefined {
+  if (p.type !== 'paragraph') return undefined;
+  const text = plain(p.children);
+  const line = text.match(/Testers:\s*([^\n]*)/i)?.[1];
+  if (!line) return undefined;
+  const n = (re: RegExp) => line.match(re)?.[1] ?? '';
+  return block('stats', {
+    personas: n(/(\d+)\s+(?:AI\s+)?personas?/i), humans: n(/(\d+)\s+humans?/i), runs: n(/~?(\d+)\s+hand[- ]drafted runs?/i),
+    batch: n(/(\d+)\s+batch runs?/i), shots: n(/(\d+)\s+screenshots?/i), panel: panel.join(','),
+  }, [p]);
+}
+
+/** The scorecard's persona ids, for the stat strip above it. */
+const panelOf = (children: BlockNode[]) => {
+  let heading = '';
+  for (const b of children) {
+    if (b.type === 'heading') heading = plain(b.children).toLowerCase();
+    if (b.type === 'table' && heading.includes('scorecard')) {
+      const col = b.header.findIndex((c) => cell(c).toLowerCase() === 'persona');
+      if (col >= 0) return b.rows.map((r) => cell(r[col]).split(/[\s(—-]/)[0].replace(/\*/g, '').toLowerCase()).filter((id) => id && id !== 'mean');
+    }
+  }
+  return [];
+};
 
 /** The machine-readable findings fence: `[{ area, type, severity, finding, … }]`. */
 function findingsFence(b: BlockNode): ComponentNode | undefined {
@@ -176,10 +213,50 @@ const personaCards: MarkdownExtension = {
   }),
 };
 
+/** The design spec's conventions (skills/game-design/references/spec-template.md): pillar cards, the run-structure
+ *  act timeline, formula chips in the scaling table, the class comparison table and the difficulty-tier scale. Each
+ *  wraps or replaces one block in place, so anchors don't move; tables stay tables. */
+const designSpec: MarkdownExtension = {
+  name: 'studio-design-spec',
+  transformDocument(doc) {
+    let heading = '';
+    const children = doc.children.map((b): BlockNode => {
+      if (b.type === 'heading') heading = plain(b.children).toLowerCase();
+      if (/pillars/.test(heading) && b.type === 'list' && b.ordered) return block('pillars', {}, b.items.map((item) => block('pillar', {}, item.children)));
+      if (b.type === 'table') {
+        const heads = b.header.map((c) => cell(c).toLowerCase());
+        if (/run structure/.test(heading) && (heads[0] === 'stage' || heads[0] === 'act')) {
+          const boss = heads.indexOf('boss');
+          const stages = b.rows.map((r) => ({ name: cell(r[0]), boss: boss >= 0 ? cell(r[boss]) : '' }));
+          return block('acts', { stages: JSON.stringify(stages) }, [b]);
+        }
+        const formula = heads.indexOf('formula');
+        if (formula >= 0) return { ...b, rows: b.rows.map((r) => r.map((c, i) => (i === formula ? { ...c, children: c.children.map((n) => (n.type === 'inlineCode' ? inline('formula', { value: n.value }) : n)) } : c))) };
+        if (/class/.test(heading) && heads[0] === '' && heads.length > 2) return block('compare', {}, [b]);
+      }
+      return tiers(b) ?? b;
+    });
+    return { ...doc, children };
+  },
+};
+
+/** `**Rift Tier** 0–5 …` (a paragraph, or an item of a list): a stepped scale above the line. */
+function tiers(b: BlockNode): BlockNode | undefined {
+  const scale = (p: BlockNode) => {
+    if (p.type !== 'paragraph' || p.children[0]?.type !== 'strong') return undefined;
+    const m = plain(p.children).match(/^([^\n]*?\btiers?)\b\**\s*(\d+)\s*[–-]\s*(\d+)/i);
+    return m && Number(m[3]) > Number(m[2]) && Number(m[3]) - Number(m[2]) <= 20 ? block('tiers', { from: m[2], to: m[3] }, [p]) : undefined;
+  };
+  if (b.type === 'paragraph') return scale(b);
+  if (b.type !== 'list' || !b.items.some((i) => i.children[0] && scale(i.children[0]))) return undefined;
+  return { ...b, items: b.items.map((i) => ({ ...i, children: i.children.map((c, j) => (j === 0 ? (scale(c) ?? c) : c)) })) };
+}
+
 /** The extension for one file: `kind` picks the rules, `persona` names a persona report's author. */
 export function studioBlocks(meta: Meta, persona?: string): MarkdownExtension | undefined {
   const kind = meta.kind;
   if (kind === 'personas') return personaCards;
+  if (kind === 'design-spec') return designSpec;
   if (kind !== 'playtest-report' && kind !== 'persona-report' && kind !== 'human-session') return undefined;
   const who = meta.persona ?? persona ?? '';
   return {
@@ -188,8 +265,10 @@ export function studioBlocks(meta: Meta, persona?: string): MarkdownExtension | 
     transformDocument(doc) {
       let heading = '';
       let titled = false;
+      const panel = kind === 'playtest-report' ? panelOf(doc.children) : [];
       const children = doc.children.map((b, i): BlockNode => {
         if (b.type === 'heading') heading = plain(b.children).toLowerCase();
+        if (kind === 'playtest-report' && !heading.match(/^\d/)) { const s = testers(b, panel); if (s) return s; }
         if (b.type === 'table') return tensions(b) ?? decorateTable(b, heading.includes('scorecard'));
         if (/backlog/.test(heading)) { const l = lanes(b); if (l) return l; }
         const f = findingsFence(b);
@@ -222,10 +301,10 @@ function Persona({ id }: { id: string }) {
   return <span className="persona-inline"><Sigil look={lookOf(id)} size={20} />{personaName(id)}</span>;
 }
 
-function Score({ value, persona }: { value: string; persona?: string }) {
+function Score({ value, persona, computed }: { value: string; persona?: string; computed?: string }) {
   const v = Number(value);
   return (
-    <span className="score">
+    <span className="score" title={computed ? 'Mean computed by the Studio' : undefined}>
       <Meter value={v} label={`${value} of 10`} color={persona ? lookOf(persona).color : 'var(--ink)'} />
       <span>{value}</span>
     </span>
@@ -263,6 +342,51 @@ function Shot({ file, caption, at }: Record<'file' | 'caption' | 'at', string>) 
       <span className="shot__frame">{thumb}{at && <span className="shot__at" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} aria-hidden="true" />}</span>
       <span className="shot__caption">{caption}</span>
     </a>
+  );
+}
+
+function Stats({ personas, humans, runs, batch, shots, panel, children }: Record<'personas' | 'humans' | 'runs' | 'batch' | 'shots' | 'panel', string> & { children?: ReactNode }) {
+  const tiles = ([['AI personas', personas], ['Humans', humans], ['Runs', runs], ['Batch runs', batch], ['Screenshots', shots]] as const).filter(([, v]) => v);
+  const ids = panel.split(',').filter(Boolean);
+  return (
+    <section className="stats">
+      {ids.length > 0 && <span className="stats__panel">{ids.map((id) => <Portrait key={id} look={lookOf(id)} size={32} label={personaName(id)} />)}</span>}
+      {tiles.length > 0 && <div className="stats__tiles">{tiles.map(([label, v]) => <div key={label} className="tile"><span className="label">{label}</span><span className="tile__value">{v}</span></div>)}</div>}
+      <div className="stats__line">{children}</div>
+    </section>
+  );
+}
+
+const roman = (n: number) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][n - 1] ?? String(n);
+function Pillars({ children }: { children?: ReactNode }) {
+  return <ol className="pillars">{[children].flat(2).map((c, i) => <li key={i}><span className="pillars__n" aria-hidden="true">{roman(i + 1)}</span>{c}</li>)}</ol>;
+}
+
+function Acts({ stages, children }: { stages: string; children?: ReactNode }) {
+  const list: { name: string; boss: string }[] = JSON.parse(stages);
+  return (
+    <div className="acts">
+      <ol className="acts__line" aria-label="Run structure">
+        {list.map((s, i) => (
+          <li key={i} className={s.boss && s.boss !== '—' && s.boss !== '-' ? 'acts__stage acts__stage--boss' : 'acts__stage'}>
+            <span className="acts__bar" aria-hidden="true" />
+            <strong>{s.name}</strong>
+            {s.boss && s.boss !== '—' && s.boss !== '-' && <span className="dim">Boss · {s.boss}</span>}
+          </li>
+        ))}
+      </ol>
+      <div className="table-scroll">{children}</div>
+    </div>
+  );
+}
+
+function Tiers({ from, to, children }: { from: string; to: string; children?: ReactNode }) {
+  const steps = Array.from({ length: Number(to) - Number(from) + 1 }, (_, i) => Number(from) + i);
+  return (
+    <div className="tiers">
+      <div className="tiers__scale" role="img" aria-label={`Tiers ${from} to ${to}`}>{steps.map((n, i) => <span key={n} style={{ height: 14 + i * 8 }}>{n}</span>)}</div>
+      {children}
+    </div>
   );
 }
 
@@ -358,4 +482,11 @@ export const blockComponents = {
   'studio-findings': Findings,
   'studio-persona-card': PersonaCard,
   'studio-shot': Shot,
+  'studio-stats': Stats,
+  'studio-pillars': Pillars,
+  'studio-pillar': ({ children }: { children?: ReactNode }) => <>{children}</>,
+  'studio-acts': Acts,
+  'studio-formula': ({ value }: { value: string }) => <code className="formula">{value}</code>,
+  'studio-compare': ({ children }: { children?: ReactNode }) => <div className="table-scroll compare">{children}</div>,
+  'studio-tiers': Tiers,
 };
