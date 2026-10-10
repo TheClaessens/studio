@@ -17,6 +17,7 @@ export async function createFeedback(remark: string, pin: Pin, attachments?: Rec
 /** Where go-to-pin jumps, per Pin kind. Later Pin kinds add theirs. */
 export const pinHref: Record<string, (pin: Pin) => string | undefined> = {
   doc: (pin) => `#Docs/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
+  playtest: (pin) => `#Playtests/${encodeURI(pin.path ?? '')}${pin.anchor ? `#${pin.anchor}` : ''}`,
 };
 
 const noLink = () => '';

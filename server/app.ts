@@ -7,6 +7,7 @@ import { out } from './out.ts';
 import { loadCatalogue } from './catalogue.ts';
 import { globFiles } from './globs.ts';
 import { feedbackRoute } from './feedback.ts';
+import { playtestsRoute } from './playtests.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -45,6 +46,7 @@ const routes: [prefix: string, handler: Handler][] = [
     serveFile(res, root, rest);
   }],
   ['/__studio/feedback', feedbackRoute],
+  ['/__studio/playtests', playtestsRoute],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (_req, res, rest, { root }) => serveFile(res, root, rest)],
 ];
