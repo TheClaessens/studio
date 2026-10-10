@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Workbench } from './assets.tsx';
 import { Docs } from './docs.tsx';
+import { Feedback } from './feedback.tsx';
 
 type Surface = { name: string; section: string; setUp: boolean; config?: unknown; example?: unknown };
 
@@ -36,6 +37,7 @@ function Studio() {
 }
 
 function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
+  if (surface.name === 'Feedback') return <Feedback setUp={surface.setUp} />; // absent section: default `feedback/`
   if (!surface.setUp) {
     return (
       <section>

@@ -1,0 +1,5 @@
+{
+  "studio": "1.x",
+  "name": "glTF Game",
+  "assets": { "catalogue": "catalogue.json", "view": "gltf" }
+}
