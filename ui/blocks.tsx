@@ -203,7 +203,20 @@ export function refsExtension(refs: FileRefs): MarkdownExtension {
       if (shot) return inline('shot', { file: shot.file, caption: shot.caption ?? '', at: shot.at?.join(',') ?? '' });
       return 'children' in n && n.type !== 'inlineComponent' ? ({ ...n, children: walk(n.children) } as InlineNode) : n;
     });
-  return { name: 'studio-refs', transformInline: walk };
+  // A paragraph citing shots gets them as a strip of thumbnails under it (a captioned shot is already one). It stays
+  // one block, so no anchor moves.
+  const shotsOf = (nodes: InlineNode[]): string[] =>
+    nodes.flatMap((n) => (n.type === 'inlineComponent' && n.name === 'shot' && n.properties?.file && !n.properties.caption ? [String(n.properties.file)] : 'children' in n && n.type !== 'inlineComponent' ? shotsOf(n.children) : []));
+  const strip = (b: BlockNode): BlockNode => {
+    if (b.type === 'paragraph') {
+      const files = [...new Set(shotsOf(b.children))];
+      return files.length ? block('cited', {}, [b, block('shots', { files: files.join('\n') })]) : b;
+    }
+    if (b.type === 'list') return { ...b, items: b.items.map((i) => ({ ...i, children: i.children.map(strip) })) };
+    if (b.type === 'blockquote' || b.type === 'callout') return { ...b, children: b.children.map(strip) };
+    return b;
+  };
+  return { name: 'studio-refs', transformInline: walk, transformDocument: (doc) => ({ ...doc, children: doc.children.map(strip) }) };
 }
 
 /** PERSONAS.md: each persona's `persona` fence (server/personas.ts reads the same fences) becomes its card. */
@@ -484,6 +497,16 @@ export const blockComponents = {
   'studio-findings': Findings,
   'studio-persona-card': PersonaCard,
   'studio-shot': Shot,
+  'studio-cited': ({ children }: { children?: ReactNode }) => <div className="cited">{children}</div>,
+  'studio-shots': ({ files }: { files: string }) => (
+    <span className="shots">
+      {files.split('\n').map((file) => (
+        <a key={file} href={routeHref('Media', file)} title={file}>
+          {/\.(mp4|webm|mov|m4v)$/i.test(file) ? <video src={`/__studio/media/${encodeURI(file)}#t=0.1`} preload="metadata" muted /> : <img src={`/__studio/media/${encodeURI(file)}`} alt={file.slice(file.lastIndexOf('/') + 1)} loading="lazy" />}
+        </a>
+      ))}
+    </span>
+  ),
   'studio-stats': Stats,
   'studio-pillars': Pillars,
   'studio-pillar': ({ children }: { children?: ReactNode }) => <>{children}</>,
