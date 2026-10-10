@@ -1,7 +1,7 @@
 // Seam-1 harness: run `studio <dir>` as a child process and talk to it over HTTP.
 import { spawn } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,13 +25,13 @@ export function startStudio(dir: string, ...args: string[]) {
   });
 }
 
-/** Runs the Studio expecting it to exit on its own (e.g. a bad manifest). */
-export function runStudio(dir: string) {
-  const child = spawn(process.execPath, [bin, dir, '--port', '0']);
+/** Runs the Studio expecting it to exit on its own (e.g. a bad manifest), or `studio check <dir>` with `check`. */
+export function runStudio(dir: string, { check = false } = {}) {
+  const child = spawn(process.execPath, check ? [bin, 'check', dir] : [bin, dir, '--port', '0']);
   let out = '';
   child.stdout.on('data', (d) => (out += d));
   child.stderr.on('data', (d) => (out += d));
-  const timer = setTimeout(() => child.kill(), 5000);
+  const timer = setTimeout(() => child.kill(), check ? 150_000 : 5000);
   return new Promise<{ code: number | null; output: string }>((resolve) =>
     child.on('exit', (code) => {
       clearTimeout(timer);
@@ -39,6 +39,14 @@ export function runStudio(dir: string) {
     }),
   );
 }
+
+/** Seam-2 tests need a Chrome/Chromium/Edge: `STUDIO_BROWSER`, or one in the usual places. Skip reason when none. */
+export const noBrowser =
+  process.env.STUDIO_BROWSER ||
+  ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser']
+    .some((p) => existsSync(p))
+    ? false
+    : 'no Chrome/Chromium/Edge found (set STUDIO_BROWSER)';
 
 /** Writes a throwaway Game Project: `{ 'studio.json': {...}, 'docs/a.md': '# A' }`. */
 export function tempProject(files: Record<string, unknown>) {

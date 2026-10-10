@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Card, PinForm, listFeedback, type Item, type Pin } from './feedback.tsx';
 import { capture, dataUrl, loadCapture } from './capture.ts';
+import { viewTemplate, viewUrl } from '../server/view.ts';
 import './assets.css';
 
 type Anchor = { name: string; range?: [number, number] };
@@ -11,18 +12,6 @@ export type Pose = { asset: Asset; anchor: Anchor; t: number; playing: boolean }
 
 const start = (asset: Asset): Pose => ({ asset, anchor: asset.anchors[0], t: asset.anchors[0]?.range?.[0] ?? 0, playing: false });
 
-/** Fills `{group} {id} {anchor} {t} {play}`; an entry's own `set` stands in for its group. */
-function viewUrl(template: string, { asset, anchor, t, playing }: Pose) {
-  const values: Record<string, string> = {
-    group: asset.set ?? asset.group,
-    id: asset.id,
-    anchor: anchor?.name ?? '',
-    t: String(+t.toFixed(2)),
-    play: playing ? '1' : '0',
-  };
-  const url = template.replace(/\{(group|id|anchor|t|play)\}/g, (_, k) => encodeURIComponent(values[k]));
-  return url.startsWith('/') ? url : `/${url}`;
-}
 
 const assetItems = (items: Item[]) => items.filter((i) => i.pin.kind === 'asset');
 
@@ -149,11 +138,9 @@ function NewFeedback({ pose, shoot, onCreated }: { pose: Pose; shoot: () => Prom
   );
 }
 
-/** `"gltf"` is the Studio's own view page, driven by the same parameters as a URL template (hash, so no reload). */
-const gltfView = (file: string) => `/__studio/gltf.html#file=${encodeURIComponent(file)}&anchor={anchor}&t={t}&play={play}`;
 
 function Stage({ view: kind, pose, setPose, frame }: { view: string; pose: Pose; setPose: (p: Pose) => void; frame: RefObject<HTMLIFrameElement | null> }) {
-  const view = kind === 'gltf' ? gltfView(pose.asset.file!) : kind;
+  const view = viewTemplate(kind, pose.asset);
   const [scrub, setScrub] = useState(pose.t);
   useEffect(() => setScrub(pose.t), [pose.t]);
   const { anchor } = pose;

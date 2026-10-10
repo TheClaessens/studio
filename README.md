@@ -14,7 +14,7 @@ npx github:TheClaessens/studio#<tag> <game-dir>     # or: npm i -g github:TheCla
 
 It validates `<game-dir>/studio.json` (schema at `/__studio/schema/studio.json`) and prints the URL to open. `--port N` picks the port (default 5170, any free one if taken).
 
-`studio check <game-dir>` runs the playtest Kit self-test (`PT.init → start → play → choose → shot → batch`) in headless Chrome, Chromium or Edge (`STUDIO_BROWSER=<executable>` to pick one). It opens `play.entry`, imports the Game Adapter module named by `play.adapter`, saves the shot in `out.playtest`, and exits non-zero naming the step that failed:
+`studio check <game-dir>` runs the playtest Kit self-test (`PT.init → start → play → choose → shot → batch`) in headless Chrome, Chromium or Edge (`STUDIO_BROWSER=<executable>` to pick one). It opens `play.entry`, imports the Game Adapter module named by `play.adapter`, saves the shot in `out.playtest`, then reopens `play.entry` and takes a screenshot (`play.hooks`' `capture` if declared, else the largest canvas). With an `assets` section it first loads the catalogue and screenshots its first asset's view (`assets.capture` if declared, else the largest canvas); a project with `assets` but no `play.adapter` runs only those steps. It exits non-zero naming the step that failed:
 
 ```json
 "play": { "entry": "index.html", "adapter": "playtest/adapter.js" },

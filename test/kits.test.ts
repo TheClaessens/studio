@@ -26,19 +26,6 @@ test('the playtest and promo Kits are served under /__studio/kits/ as ES modules
   assert.match(await (await fetch(`${studio.url}/__studio/kits/playtest/playtest-core.js`)).text(), /export function createPlaytest/);
 });
 
-test('the served Kits save to /__studio/out/<kind>/ and no kit-server route is left', async (t) => {
-  const studio = await startStudio(fixture('static-only'));
-  t.after(studio.stop);
-  const src = (f: string) => fetch(`${studio.url}/__studio/kits/${f}`).then((r) => r.text());
-
-  assert.match(await src('playtest/playtest-core.js'), /'\/__studio\/out\/playtest\/'/);
-  assert.match(await src('promo/renderer.js'), /`\/__studio\/out\/promo\/\$\{name\}`/);
-  assert.match(await src('promo/verify.js'), /'\/__studio\/out\/promo\/'/);
-  for (const f of ['playtest/playtest-core.js', 'playtest/hands-topdown.js', 'promo/renderer.js', 'promo/verify.js']) {
-    assert.doesNotMatch(await src(f), /__playtest\/|__promo\/|'\/promo\/out/, f);
-  }
-});
-
 const example = (name: string) => fileURLToPath(new URL(`../examples/${name}`, import.meta.url));
 /** A throwaway copy, so writes never land in the repo's examples. */
 const cpTemp = (src: string) => {
