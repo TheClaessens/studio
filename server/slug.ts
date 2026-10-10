@@ -17,8 +17,8 @@ export function anchorer() {
 
 /** Every heading anchor in a markdown text, in order. With `items`, also `<heading>/<n>` for the n-th numbered
  *  list item or numbered table row (`| 2 | … |`) under each heading: the playtest finding anchors. */
-// ponytail: ATX and setext headings with inline markup stripped by regex, not a full markdown parse;
-// exotic headings (HTML, nested emphasis edge cases) may slug differently from the rendered page.
+// ponytail: ATX and setext headings with inline markup stripped by regex, not a full markdown parse; exotic
+// headings (HTML, nested emphasis edge cases) may slug oddly, but the rendered page takes its anchors from here.
 // Items count only unindented `1.`/`1)` lines and table rows, so lists in blockquotes or nested lists are not findings.
 export function headingAnchors(markdown: string, items = false) {
   const anchor = anchorer();
@@ -27,7 +27,10 @@ export function headingAnchors(markdown: string, items = false) {
   let prev = '';
   let section = '';
   let n = 0;
-  for (const line of markdown.split(/\r?\n/)) {
+  const lines = markdown.split(/\r?\n/);
+  // A leading `---` frontmatter block (a file's `kind`, `round`…) is data, not headings.
+  const close = lines[0] === '---' ? lines.findIndex((l, i) => i > 0 && l === '---') : -1; // as the UI's parser reads it
+  for (const line of close > 0 ? lines.slice(close + 1) : lines) {
     const f = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1];
     const atx = line.match(/^ {0,3}#{1,6}(?:\s+(.*?))?(?:\s+#+)?\s*$/);
     let heading: string | undefined;

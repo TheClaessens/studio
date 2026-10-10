@@ -1,59 +1,128 @@
-// Markdown rendering shared by the Docs and Playtests Surfaces. Every heading gets an `id` anchor
-// (GitHub-style slug, `-1`, `-2` for repeats), which heading Pins store. With `items`, numbered list items and
-// numbered table rows get `<heading>/<n>` anchors too (playtest findings; server/slug.ts counts them the same way).
-import { useEffect, useMemo, useRef } from 'react';
-import { Marked, Renderer, type Tokens } from 'marked';
-import { anchorer } from '../server/slug.ts';
+// Markdown rendering shared by the Docs, Playtests and Feedback Surfaces, on TanStack Markdown.
+// Anchors come from the server's own `headingAnchors` (server/slug.ts), so every anchor the page offers is one a Pin
+// resolves to: top-level headings take the server's heading anchors in order, and with `items`, top-level numbered
+// list items and numbered table rows take its `<heading>/<n>` finding anchors.
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { parseMarkdown, type BlockNode, type ListNode, type MarkdownExtension, type ParseOptions, type TableNode } from '@tanstack/markdown';
+import { renderBlockReact, renderInlineReact } from '@tanstack/markdown/react';
+import { headingAnchors } from '../server/slug.ts';
 
-type Finding = { finding?: boolean };
+/** Setext headings (`Title` over `===` or `---`), which TanStack Markdown leaves out. Same rule as the server's:
+ *  one text line, not a list item or quote, directly above the underline. */
+const setext: MarkdownExtension = {
+  name: 'studio-setext',
+  parseBlock({ lines, index, parseInline, consume }) {
+    const line = lines[index];
+    const under = lines[index + 1]?.match(/^ {0,3}(=+|-+)\s*$/);
+    if (!under || !line.trim() || /^ {0,3}([-*+>#]|\d+[.)]\s|`{3,}|~{3,}|\|)/.test(line)) return undefined;
+    consume(2);
+    return { type: 'heading', depth: under[1][0] === '=' ? 1 : 2, children: parseInline(line.trim()) };
+  },
+};
+
+/** Indented code blocks (four spaces after a blank line), which TanStack Markdown leaves out. */
+const indentedCode: MarkdownExtension = {
+  name: 'studio-indented-code',
+  parseBlock({ lines, index, consume }) {
+    const indented = (l: string) => /^( {4}|\t)/.test(l);
+    if (!indented(lines[index]) || (index > 0 && lines[index - 1].trim())) return undefined;
+    let end = index;
+    while (end < lines.length && (indented(lines[end]) || !lines[end].trim())) end++;
+    while (end > index && !lines[end - 1].trim()) end--;
+    consume(end - index);
+    return { type: 'code', value: lines.slice(index, end).map((l) => l.replace(/^( {4}|\t)/, '')).join('\n') };
+  },
+};
+
+// ponytail: the Game Project's own files may hold raw HTML; it is rendered as-is, as the Studio did with marked.
+const options: ParseOptions = { allowHtml: true, headingIds: false, extensions: [setext, indentedCode] };
+
+type Href = (anchor: string) => string;
 
 /** Renders `text`; `href(anchor)` makes each heading a link to itself, and `anchor` is scrolled into view. */
-export function Markdown({ text, anchor, href, items }: { text: string; anchor?: string; href: (anchor: string) => string; items?: boolean }) {
-  const html = useMemo(() => {
-    const anchor = anchorer();
-    let section = '';
-    let n = 0;
-    let rowIds: (string | undefined)[] = [];
-    const next = () => (section ? `${section}/${++n}` : undefined);
-    const link = (id: string) => `<a class="anchor" href="${href(id)}">#</a> `;
-    const marked = new Marked({
-      renderer: {
-        heading({ tokens, depth }) {
-          const inner = this.parser.parseInline(tokens);
-          const id = (section = anchor(this.parser.parseInline(tokens, this.parser.textRenderer)));
-          n = 0;
-          return `<h${depth} id="${id}"><a class="anchor" href="${href(id)}">${inner}</a></h${depth}>\n`;
-        },
-        listitem(item) {
-          const html = Renderer.prototype.listitem.call(this, item);
-          const id = (item as Finding).finding && next();
-          return id ? html.replace('<li>', `<li id="${id}">${link(id)}`) : html;
-        },
-        table(token) {
-          rowIds = [undefined, ...token.rows.map((row) => ((token as Finding).finding && /^\d+$/.test(row[0]?.text.trim()) ? next() : undefined))];
-          return Renderer.prototype.table.call(this, token);
-        },
-        tablerow(row) {
-          const id = rowIds.shift();
-          return id ? `<tr id="${id}">${row.text.replace(/^(<td[^>]*>)/, `$1${link(id)}`)}</tr>\n` : Renderer.prototype.tablerow.call(this, row);
-        },
-      },
-    });
-    // Only top-level ordered lists and tables hold findings, matching the server's unindented-line count.
-    const tokens = marked.lexer(text);
-    if (items)
-      for (const t of tokens) {
-        if (t.type === 'list' && t.ordered) for (const item of (t as Tokens.List).items) (item as Finding).finding = true;
-        if (t.type === 'table') (t as Finding).finding = true;
-      }
-    // ponytail: the doc's raw HTML is rendered as-is; it is the Game Project's own file, already served same-origin.
-    return marked.parser(tokens);
-  }, [text, href, items]);
-
+export function Markdown({ text, anchor, href, items }: { text: string; anchor?: string; href: Href; items?: boolean }) {
+  const body = useMemo(() => render(text, href, !!items), [text, href, items]);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (anchor) ref.current?.querySelector(`#${CSS.escape(anchor)}`)?.scrollIntoView();
-  }, [html, anchor]);
+  }, [body, anchor]);
+  return <article ref={ref} className="markdown">{body}</article>;
+}
 
-  return <article ref={ref} className="markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+function render(text: string, href: Href, items: boolean): ReactNode[] {
+  const doc = parseMarkdown(text, options);
+  const anchors = headingAnchors(text, items);
+  const headings = anchors.filter((a) => !a.includes('/')); // a slug never holds `/`
+  const findings = new Set(anchors.filter((a) => a.includes('/')));
+  let h = 0;
+  let section = '';
+  let n = 0;
+  const finding = () => {
+    const id = section ? `${section}/${++n}` : undefined;
+    return id && findings.has(id) ? id : undefined;
+  };
+  const link = (id: string) => <a className="anchor" href={href(id)}>#</a>;
+
+  return doc.children.map((block, i) => {
+    const key = `b${i}`;
+    if (block.type === 'heading') {
+      const id = headings[h++];
+      section = id ?? '';
+      n = 0;
+      const Tag = `h${block.depth}` as const;
+      const inner = block.children.map((c, j) => renderInlineReact(c, options, `${j}`));
+      return id ? <Tag key={key} id={id}><a className="anchor" href={href(id)}>{inner}</a></Tag> : <Tag key={key}>{inner}</Tag>;
+    }
+    // Anchors are taken here, in document order: the components render later, after `section` has moved on.
+    if (items && block.type === 'list' && block.ordered) return <FindingList key={key} list={block} ids={block.items.map(finding)} link={link} />;
+    if (items && block.type === 'table')
+      return <FindingTable key={key} table={block} ids={block.rows.map((row) => (/^\d+$/.test(cellText(row[0])) ? finding() : undefined))} link={link} />;
+    return renderBlockReact(block, options, key);
+  });
+}
+
+type Finding = { ids: (string | undefined)[]; link: (id: string) => ReactNode };
+
+const cellText = (cell: TableNode['header'][number] | undefined) => cell?.children.map((c) => (c.type === 'text' ? c.value : '')).join('').trim() ?? '';
+
+/** A top-level numbered list: each item is a finding (`<heading>/<n>`). */
+function FindingList({ list, ids, link }: { list: ListNode } & Finding) {
+  return (
+    <ol start={list.start !== undefined && list.start !== 1 ? list.start : undefined}>
+      {list.items.map((item, i) => {
+        const anchor = ids[i];
+        return (
+          <li key={i} id={anchor}>
+            {anchor && link(anchor)}
+            {anchor && ' '}
+            {item.children.map((child, j) => listChild(child, j, !!list.loose))}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const listChild = (child: BlockNode, j: number, loose: boolean) =>
+  child.type === 'paragraph' && !loose ? child.children.map((c, k) => renderInlineReact(c, options, `${j}:${k}`)) : renderBlockReact(child, options, `${j}`);
+
+/** A table: rows whose first cell is a number are findings. */
+function FindingTable({ table, ids, link }: { table: TableNode } & Finding) {
+  const cells = (row: TableNode['header'], Cell: 'th' | 'td', anchor?: string) =>
+    row.map((cell, i) => (
+      <Cell key={i} style={table.align[i] ? { textAlign: table.align[i] } : undefined}>
+        {i === 0 && anchor && <>{link(anchor)} </>}
+        {cell.children.map((c, j) => renderInlineReact(c, options, `${j}`))}
+      </Cell>
+    ));
+  return (
+    <table>
+      <thead><tr>{cells(table.header, 'th')}</tr></thead>
+      {table.rows.length > 0 && (
+        <tbody>
+          {table.rows.map((row, r) => <tr key={r} id={ids[r]}>{cells(row, 'td', ids[r])}</tr>)}
+        </tbody>
+      )}
+    </table>
+  );
 }

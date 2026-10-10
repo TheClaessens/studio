@@ -210,6 +210,18 @@ test('the inbox lists every item and flags Pins that no longer resolve', async (
   assert.equal(after.find((i) => i.body.trim() === 'section')?.resolved, false);
 });
 
+test('a leading frontmatter block holds no headings a doc Pin can point at', async (t) => {
+  const dir = project();
+  writeFileSync(join(dir, 'DESIGN.md'), '---\nkind: design-spec\n---\n# Design\n\n## Combat\n');
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+
+  for (const [remark, pin] of Object.entries({ heading: docPin('combat'), frontmatter: docPin('kind-design-spec', 'kind') }))
+    assert.equal((await create(studio.url, { remark, pin })).status, 201);
+  const items: { body: string; resolved: boolean }[] = await list(studio.url);
+  assert.deepEqual(Object.fromEntries(items.map((i) => [i.body.trim(), i.resolved])), { heading: true, frontmatter: false });
+});
+
 test('with no feedback folder yet the inbox is empty', async (t) => {
   const studio = await startStudio(project());
   t.after(studio.stop);

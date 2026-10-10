@@ -52,6 +52,7 @@ textarea { width: 100%; resize: vertical; }
 /* Markdown, in house type until the Studio blocks land (S1) */
 .markdown { flex: 1; min-width: 0; max-width: 760px; font-size: 15px; line-height: 1.65; }
 .markdown h1 { font-size: 44px; line-height: 1.05; margin: 0 0 24px; letter-spacing: -.015em; }
+.markdown h1:not(:first-child) { margin-top: 48px; }
 .markdown h2 { font-size: 28px; margin: 40px 0 12px; }
 .markdown h3 { font-size: 21px; margin: 28px 0 8px; }
 .markdown h4, .markdown h5, .markdown h6 { font-family: var(--font-ui); font-size: 14px; font-weight: 600; margin: 20px 0 6px; }
