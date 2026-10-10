@@ -76,6 +76,11 @@ Reference-round examples:
 ## Synthesis REPORT template
 
 ```markdown
+---
+kind: playtest-report
+round: N
+build: "<version/date>"
+---
 # <GAME> — Simulated Playtest, Round N · Synthesis
 **Build:** <version/date> · **Method:** <protocol link> · **Personas:** <link>
 **Testers:** N AI personas (<models>), ~X hand-drafted runs + Y batch runs, Z screenshots; top claims verified in-engine.
@@ -93,6 +98,7 @@ Not verified, worth a quick check: …
 
 ## 4. Top issues (ranked by severity × reach × pillar impact)
 | # | Issue | Sev. | Raised by | Evidence | Recommended change | Effort |
+`Raised by` lists persona ids, comma-separated (`mila, noor, ilse`), so the Studio can show who raised it. `Sev.` is one word: blocker, major, minor or polish.
 Smaller polish: …
 
 ## 5. What to keep (consensus praise)
@@ -101,14 +107,17 @@ Smaller polish: …
 | Tension | Side A (personas) | Side B (personas) | Suggested resolution |
 
 ## 7. Recommended backlog
-**Now** (bugs/blockers, small) · **Next** (core clarity & balance) · **Later** (retention, larger)
-End "Next" with "re-run the analyst batches (n ≥ 8) to re-baseline".
+- **Now** (bugs/blockers, small): …
+- **Next** (core clarity & balance): …; end with "re-run the analyst batches (n ≥ 8) to re-baseline"
+- **Later** (retention, larger): …
 
 ## 8. Harness caveats & next-round improvements
 <bot ceiling and calibration, crutch usage, what was not evaluated (audio, real-time feel), auto-pick usage, cost>
 
 ## Appendix — persona reports
 ```
+
+**Frontmatter.** Keep the block at the top as shown: the Studio reads `kind` to show the file as a synthesis, with severity badges, verdict tags and who raised each issue.
 
 **Ranking rule.** Score each issue by three factors:
 - **Severity:** blocker 4, major 3, minor 2, polish 1.

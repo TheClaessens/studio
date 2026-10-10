@@ -36,6 +36,8 @@ export function Reader({ rail, kind, path, text, markdown, anchor, href, items, 
   }, [text, anchor, view]);
 
   const rendered = markdown && view === 'rendered';
+  // A persona report is `NN-<persona>.md` (its frontmatter `persona` wins).
+  const persona = kind === 'playtest' ? path.match(/(?:^|\/)\d+-([\w.-]+)\.md$/)?.[1] : undefined;
   return (
     <div className="reader">
       <aside className="reader__rail">{rail}</aside>
@@ -49,7 +51,7 @@ export function Reader({ rail, kind, path, text, markdown, anchor, href, items, 
         </div>
         {label !== undefined && <PinForm key={`${path}#${anchor}`} pin={{ kind, path, anchor, label }} onCreated={feedback.reload} />}
         {text !== undefined && (rendered ? (
-          <Markdown text={text} anchor={anchor} href={href} items={items} counts={feedback.counts} onOutline={setOutline} />
+          <Markdown text={text} anchor={anchor} href={href} items={items} counts={feedback.counts} onOutline={setOutline} persona={persona} />
         ) : (
           <pre className="reader__source">{text}</pre>
         ))}

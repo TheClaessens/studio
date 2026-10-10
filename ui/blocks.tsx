@@ -1,0 +1,279 @@
+// Studio blocks: the playtest skills' conventions turned into components (docs/design/ui-redesign.md, Markdown).
+// A TanStack Markdown extension rewrites recognised nodes into component nodes (`studio-*` tags); the React
+// `components` map below renders them. Which rules apply is chosen by the file's frontmatter `kind`.
+import { useState, type ReactNode } from 'react';
+import type { BlockNode, ComponentNode, InlineComponentNode, InlineNode, MarkdownExtension, TableCellNode, TableNode } from '@tanstack/markdown';
+import { FilterPill, Meter, Segmented, SeverityBadge, Sigil, VerdictTag, isSeverity, type Verdict } from './design/atoms.tsx';
+import { lookOf, personaName } from './design/personas.ts';
+
+export type Meta = Record<string, string>;
+
+/** A leading `---` block of flat `key: value` lines, as the skills write it. */
+export function readFrontmatter(text: string): Meta {
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+  const meta: Meta = {};
+  for (const line of m?.[1].split(/\r?\n/) ?? []) {
+    const kv = line.match(/^([\w-]+):\s*(.*?)\s*$/);
+    if (kv) meta[kv[1]] = kv[2].replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+  }
+  return meta;
+}
+
+const inline = (name: string, properties: Record<string, string>, children: InlineNode[] = []): InlineComponentNode =>
+  ({ type: 'inlineComponent', name, attributes: {}, tagName: `studio-${name}`, properties, children });
+const block = (name: string, properties: Record<string, string>, children: BlockNode[] = []): ComponentNode =>
+  ({ type: 'component', name, attributes: {}, tagName: `studio-${name}`, properties, children });
+
+export const plain = (nodes: InlineNode[]): string =>
+  nodes.map((n) => ('value' in n && n.type !== 'inlineHtml' ? n.value : 'children' in n ? plain(n.children) : '')).join('');
+const cell = (c: TableCellNode | undefined) => plain(c?.children ?? []).trim();
+
+/** `Severity: major` anywhere in running text becomes a severity badge. */
+function severities(nodes: InlineNode[]): InlineNode[] {
+  return nodes.flatMap((n) => {
+    if (n.type !== 'text') return [n];
+    const out: InlineNode[] = [];
+    let rest = n.value;
+    for (let m; (m = rest.match(/Severity:\s*(blocker|major|minor|polish)\b/i)); ) {
+      if (m.index) out.push({ type: 'text', value: rest.slice(0, m.index).replace(/[\s·—-]+$/, ' ') });
+      out.push(inline('severity', { level: m[1].toLowerCase() }));
+      rest = rest.slice(m.index! + m[0].length);
+    }
+    if (rest) out.push({ type: 'text', value: rest });
+    return out;
+  });
+}
+
+const verdictOf = (text: string): Verdict | undefined => {
+  const t = text.toLowerCase();
+  return t.includes('real bug') ? 'real-bug' : t.includes('design flaw') ? 'design-flaw' : t.includes('harness') ? 'harness-artefact'
+    : t.includes('bot limit') ? 'bot-limitation' : t.includes('unverified') ? 'unverified' : undefined;
+};
+const score = (text: string) => text.match(/^\**\s*(\d+(?:\.\d+)?)\s*(?:\/\s*10)?\s*\**$/)?.[1];
+
+/** Table columns the skills' templates name: severity, verdict, who raised it, persona and 0–10 scores. */
+function decorateTable(table: TableNode, scorecard: boolean): TableNode {
+  const heads = table.header.map((c) => cell(c).toLowerCase());
+  const col = (test: (h: string) => boolean) => heads.findIndex(test);
+  const sev = col((h) => h.startsWith('sev'));
+  const verdict = col((h) => h.startsWith('verdict'));
+  const raised = col((h) => h.startsWith('raised by'));
+  const persona = scorecard ? col((h) => h === 'persona') : -1;
+  const scores = scorecard ? heads.flatMap((h, i) => (/^(fun|domain)/.test(h) ? [i] : [])) : [];
+  const rows = table.rows.map((row) => {
+    const mean = /^\**mean\**$/i.test(cell(row[persona] ?? row[0]));
+    return row.map((c, i): TableCellNode => {
+      const t = cell(c);
+      if (i === sev && isSeverity(t.toLowerCase())) return { type: 'tableCell', children: [inline('severity', { level: t.toLowerCase() })] };
+      if (i === verdict && verdictOf(t)) return { type: 'tableCell', children: [inline('verdict', { verdict: verdictOf(t)! })] };
+      if (i === raised && t) return { type: 'tableCell', children: [inline('raised', { ids: t })] };
+      if (i === persona && t && !mean) return { type: 'tableCell', children: [inline('persona', { id: t.split(/[\s(—-]/)[0].toLowerCase() })] };
+      if (scores.includes(i) && score(t)) return { type: 'tableCell', children: [inline('score', { value: score(t)!, persona: mean ? '' : cell(row[persona]).split(/[\s(—-]/)[0].toLowerCase() })] };
+      return c;
+    });
+  });
+  return { ...table, rows };
+}
+
+/** A `Side A` / `Side B` table: one card per tension. Its rows never start with a number, so no finding moves. */
+function tensions(table: TableNode): ComponentNode | undefined {
+  const heads = table.header.map((c) => cell(c).toLowerCase());
+  const a = heads.findIndex((h) => h.startsWith('side a'));
+  const b = heads.findIndex((h) => h.startsWith('side b'));
+  if (a < 0 || b < 0 || table.rows.some((r) => /^\d+$/.test(cell(r[0])))) return undefined;
+  const res = heads.findIndex((h) => h.includes('resolution'));
+  return block('tensions', {}, table.rows.map((r) =>
+    block('tension', { title: cell(r[0]), a: cell(r[a]), b: cell(r[b]), resolution: res >= 0 ? cell(r[res]) : '' })));
+}
+
+/** `- **Now** …` / `**Next**` / `**Later**` items under a backlog heading: three lanes. */
+function lanes(list: BlockNode): ComponentNode | undefined {
+  if (list.type !== 'list' || list.ordered) return undefined;
+  const lead = (item: (typeof list.items)[number]) => {
+    const p = item.children[0];
+    const first = p?.type === 'paragraph' ? p.children[0] : undefined;
+    return first?.type === 'strong' ? plain(first.children).trim() : '';
+  };
+  if (!list.items.length || !list.items.every((i) => /^(now|next|later)$/i.test(lead(i)))) return undefined;
+  return block('lanes', {}, list.items.map((item) => {
+    const [p, ...rest] = item.children;
+    // The lane names its own hint, so drop the template's "(bugs/blockers, small):" after the bold lead.
+    const after = p?.type === 'paragraph' ? p.children.slice(1) : [];
+    if (after[0]?.type === 'text') after[0] = { type: 'text', value: after[0].value.replace(/^\s*(\([^)]*\))?\s*:?\s*/, '') };
+    const body = p?.type === 'paragraph' ? [{ ...p, children: after } as BlockNode, ...rest] : item.children;
+    return block('lane', { lane: lead(item).toLowerCase() }, body);
+  }));
+}
+
+/** The persona report's verdict line under its title: `**…** Fun: x/10 · Would play again tomorrow: … · Domain score: x/10`. */
+function verdictLine(p: BlockNode, persona: string): ComponentNode | undefined {
+  if (p.type !== 'paragraph') return undefined;
+  const text = plain(p.children);
+  const fun = text.match(/Fun:\s*([\d.]+)\s*\/\s*10/i)?.[1];
+  if (!fun) return undefined;
+  const lead = p.children[0]?.type === 'strong' ? plain(p.children[0].children) : text.split(/Fun:/i)[0];
+  return block('scores', {
+    persona,
+    verdict: lead.trim(),
+    fun,
+    again: text.match(/again tomorrow\??:\s*([\w/-]+)/i)?.[1] ?? '',
+    domain: text.match(/Domain score:\s*([\w.]+)\s*\/\s*10/i)?.[1] ?? '',
+  });
+}
+
+/** The machine-readable findings fence: `[{ area, type, severity, finding, … }]`. */
+function findingsFence(b: BlockNode): ComponentNode | undefined {
+  if (b.type !== 'code' || b.lang !== 'json') return undefined;
+  try {
+    const data = JSON.parse(b.value);
+    if (Array.isArray(data) && data.length && data.every((d) => d && typeof d.finding === 'string')) return block('findings', { json: b.value });
+  } catch {}
+  return undefined;
+}
+
+/** The extension for one file: `kind` picks the rules, `persona` names a persona report's author. */
+export function studioBlocks(meta: Meta, persona?: string): MarkdownExtension | undefined {
+  const kind = meta.kind;
+  if (kind !== 'playtest-report' && kind !== 'persona-report' && kind !== 'human-session') return undefined;
+  const who = meta.persona ?? persona ?? '';
+  return {
+    name: 'studio-blocks',
+    transformInline: severities,
+    transformDocument(doc) {
+      let heading = '';
+      let titled = false;
+      const children = doc.children.map((b, i): BlockNode => {
+        if (b.type === 'heading') heading = plain(b.children).toLowerCase();
+        if (b.type === 'table') return tensions(b) ?? decorateTable(b, heading.includes('scorecard'));
+        if (/backlog/.test(heading)) { const l = lanes(b); if (l) return l; }
+        const f = findingsFence(b);
+        if (f) return f;
+        if (kind !== 'playtest-report' && !titled && doc.children[i - 1]?.type === 'heading') {
+          titled = true;
+          return verdictLine(b, who) ?? b;
+        }
+        return b;
+      });
+      return { ...doc, children };
+    },
+  };
+}
+
+// --- Components for the `studio-*` tags ---------------------------------------------------------------------------
+
+const ids = (list: string) => list.split(/[,;]|\band\b/).map((s) => s.trim().toLowerCase().split(/\s/)[0]).filter(Boolean);
+
+function Raised({ ids: list }: { ids: string }) {
+  const people = ids(list);
+  return (
+    <span className="raised" title={people.map(personaName).join(', ')}>
+      {people.map((id) => <Sigil key={id} look={lookOf(id)} size={20} label={personaName(id)} />)}
+    </span>
+  );
+}
+
+function Persona({ id }: { id: string }) {
+  return <span className="persona-inline"><Sigil look={lookOf(id)} size={20} />{personaName(id)}</span>;
+}
+
+function Score({ value, persona }: { value: string; persona?: string }) {
+  const v = Number(value);
+  return (
+    <span className="score">
+      <Meter value={v} label={`${value} of 10`} color={persona ? lookOf(persona).color : 'var(--ink)'} />
+      <span>{value}</span>
+    </span>
+  );
+}
+
+const voiceClass = (persona: string) => `voice voice--${lookOf(persona).voice ?? 'soft'}`;
+
+function Scores({ persona, verdict, fun, again, domain }: Record<'persona' | 'verdict' | 'fun' | 'again' | 'domain', string>) {
+  const look = lookOf(persona || 'unknown');
+  return (
+    <section className="scores">
+      {verdict && <p className={voiceClass(persona)} style={{ color: look.ink ?? 'var(--ink-2)' }}>“{verdict.replace(/^[“"]|[”"]$/g, '')}”</p>}
+      <div className="scores__tiles">
+        <div className="tile"><span className="label">Fun</span><span className="tile__value">{fun}<small>/10</small></span><Meter value={Number(fun)} label={`Fun ${fun} of 10`} color={look.color} /></div>
+        {again && <div className="tile"><span className="label">Again tomorrow?</span><span className="tile__value">{again[0].toUpperCase() + again.slice(1)}</span></div>}
+        {domain && <div className="tile"><span className="label">Domain score</span><span className="tile__value">{domain}<small>/10</small></span>{!Number.isNaN(Number(domain)) && <Meter value={Number(domain)} label={`Domain ${domain} of 10`} color={look.color} />}</div>}
+      </div>
+    </section>
+  );
+}
+
+function Tension({ title, a, b, resolution }: Record<'title' | 'a' | 'b' | 'resolution', string>) {
+  // Side text often names its personas in brackets: "fewer deaths (mila)".
+  const side = (text: string, label: string) => {
+    const who = text.match(/\(([^)]+)\)\s*$/)?.[1];
+    return (
+      <div className="tension__side">
+        <span className="label">{label}{who && <> · <Raised ids={who} /></>}</span>
+        <span>{who ? text.replace(/\s*\([^)]+\)\s*$/, '') : text}</span>
+      </div>
+    );
+  };
+  return (
+    <div className="tension">
+      <strong className="tension__title">{title}</strong>
+      <div className="tension__sides">{side(a, 'Side A')}<span className="tension__vs">vs</span>{side(b, 'Side B')}</div>
+      {resolution && <p className="tension__res"><span className="label">Resolution</span>{resolution}</p>}
+    </div>
+  );
+}
+
+const laneHint: Record<string, string> = { now: 'bugs, blockers', next: 'clarity, balance', later: 'retention, larger' };
+function Lane({ lane, children }: { lane: string; children?: ReactNode }) {
+  return (
+    <div className={`lane lane--${lane}`}>
+      <span className="label">{lane[0].toUpperCase() + lane.slice(1)} · {laneHint[lane]}</span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+type Finding = { area?: string; type?: string; severity?: string; finding: string; evidence?: string; recommendation?: string };
+function Findings({ json }: { json: string }) {
+  const all: Finding[] = JSON.parse(json);
+  const types = [...new Set(all.map((f) => f.type).filter(Boolean))] as string[];
+  const [type, setType] = useState<string>();
+  const [view, setView] = useState<'table' | 'raw'>('table');
+  const shown = all.filter((f) => !type || f.type === type);
+  return (
+    <section className="findings">
+      <div className="findings__bar">
+        <div className="findings__types" role="group" aria-label="Type">
+          <FilterPill on={!type} onClick={() => setType(undefined)}>All {all.length}</FilterPill>
+          {types.map((t) => <FilterPill key={t} on={type === t} onClick={() => setType(t)}>{t} {all.filter((f) => f.type === t).length}</FilterPill>)}
+        </div>
+        <Segmented label="View" value={view} onChange={setView} options={[{ value: 'table', label: 'Table' }, { value: 'raw', label: 'JSON' }]} />
+      </div>
+      {view === 'raw' ? <pre>{json}</pre> : (
+        <div className="rows">
+          {shown.map((f, i) => (
+            <div key={i} className="row findings__row">
+              <span className="findings__area">{f.area}</span>
+              <span className="row__text"><span>{f.finding}</span>{f.recommendation && <span className="dim">→ {f.recommendation}</span>}</span>
+              {f.severity && isSeverity(f.severity) && <SeverityBadge level={f.severity} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** The React side of the Studio blocks, passed as TanStack Markdown's `components`. */
+export const blockComponents = {
+  'studio-severity': ({ level }: { level: string }) => (isSeverity(level) ? <SeverityBadge level={level} /> : <>{level}</>),
+  'studio-verdict': ({ verdict }: { verdict: Verdict }) => <VerdictTag verdict={verdict} />,
+  'studio-raised': Raised,
+  'studio-persona': Persona,
+  'studio-score': Score,
+  'studio-scores': Scores,
+  'studio-tensions': ({ children }: { children?: ReactNode }) => <div className="tensions">{children}</div>,
+  'studio-tension': Tension,
+  'studio-lanes': ({ children }: { children?: ReactNode }) => <div className="lanes">{children}</div>,
+  'studio-lane': Lane,
+  'studio-findings': Findings,
+};

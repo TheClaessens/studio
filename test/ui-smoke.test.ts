@@ -73,3 +73,42 @@ test('every anchor the rendered Docs and Playtests pages offer resolves as a Pin
   const items: { body: string; resolved: boolean }[] = await (await fetch(`${studio.url}/__studio/feedback`)).json();
   assert.deepEqual(items.filter((i) => !i.resolved).map((i) => i.body.trim()), []);
 });
+
+test('playtest files with a kind show the Studio blocks: scores, severity, verdicts, who raised it', { skip: noBrowser, timeout: 60_000 }, async (t) => {
+  const report = [
+    '---', 'kind: playtest-report', 'round: 1', '---', '# Arena — Simulated Playtest, Round 1 · Synthesis', '',
+    '## 3. Verified by the orchestrator', '| Claim | Verdict | Evidence |', '|---|---|---|', '| Boss stall | real bug | probe hit dealt 0 |', '',
+    '## 4. Top issues', '| # | Issue | Sev. | Raised by |', '|---|---|---|---|', '| 1 | **Boss unkillable** | blocker | mila, rhea |', '',
+  ].join('\n');
+  const mila = [
+    '---', 'kind: persona-report', 'round: 1', 'persona: mila', '---', '# Mila — cozy casual · playtest round 1',
+    '**Pretty, and I felt strong.** Fun: 8/10 · Would play again tomorrow: yes · Domain score: 7/10', '',
+    '## Pain points (ranked, worst first)', '1. **I lose my own character in the effects.** Severity: major', '',
+  ].join('\n');
+  const dir = tempProject({ 'studio.json': { studio: '1.x', name: 'Blocks', playtests: 'playtest' }, 'playtest/round-1/REPORT.md': report, 'playtest/round-1/01-mila.md': mila });
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+  const browser = await openBrowser();
+  t.after(browser.close);
+
+  const look = async (hash: string, ready: string) => {
+    await browser.open(`${studio.url}/__studio/?${encodeURIComponent(hash)}${hash}`);
+    return browser.evaluate(`(async () => {
+      for (const until = Date.now() + 10000; Date.now() < until; await new Promise((r) => setTimeout(r, 100)))
+        if (document.querySelector(${JSON.stringify(ready)})) break;
+      const m = document.querySelector('.markdown');
+      return { text: m?.innerText ?? '', sev: [...m.querySelectorAll('.sev')].map((e) => e.innerText), verdicts: [...m.querySelectorAll('.verdict')].map((e) => e.innerText), raised: m.querySelectorAll('.raised [role=img]').length };
+    })()`);
+  };
+  const synthesis = await look('#Playtests/playtest/round-1/REPORT.md', '.verdict');
+  assert.deepEqual(synthesis.verdicts, ['Real bug']);
+  assert.deepEqual(synthesis.sev, ['Blocker']);
+  assert.equal(synthesis.raised, 2);
+  assert.doesNotMatch(synthesis.text, /kind: playtest-report/); // frontmatter is data, not text
+
+  const persona = await look('#Playtests/playtest/round-1/01-mila.md', '.scores');
+  assert.match(persona.text, /Pretty, and I felt strong\./);
+  assert.match(persona.text, /Again tomorrow\?\s*Yes/);
+  assert.deepEqual(persona.sev, ['Major']);
+  assert.deepEqual(browser.pageErrors, []);
+});

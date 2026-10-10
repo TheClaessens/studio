@@ -100,7 +100,14 @@ Spend your effort on playing and observing. Use the run count in your persona an
 
 ## Report — write `{report dir}/<NN>-<persona>.md` with exactly these sections
 
+Start with the frontmatter block exactly as shown: the Studio reads it to show the report as yours (`persona` is your id from `PERSONAS.md`, the same one as in the file name).
+
 ```markdown
+---
+kind: persona-report
+round: N
+persona: <id>
+---
 # <Persona> — <archetype> · playtest round N
 **Verdict (in character, 2–3 sentences).**  Fun: x/10 · Would play again tomorrow: yes/no/maybe · Domain score: x/10
 

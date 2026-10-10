@@ -14,16 +14,18 @@ export const sigils = {
 } as const;
 export type SigilName = keyof typeof sigils;
 
-export type PersonaLook = { color: string; mid: string; tint: string; sigil: SigilName };
+/** How a persona's own words are set: verdicts and quotes only, everything else stays in house type. */
+export type Voice = 'soft' | 'heavy' | 'mono' | 'loud';
+export type PersonaLook = { color: string; mid: string; tint: string; sigil: SigilName; voice?: Voice; ink?: string };
 
 export const corePanel: Record<string, PersonaLook> = {
-  mila: { color: '#b0446a', mid: '#e2a9bd', tint: '#f6e1e8', sigil: 'moon' },
-  viktor: { color: '#5b3fa8', mid: '#bfb0e4', tint: '#e8e2f5', sigil: 'blocks' },
-  noor: { color: '#1f6d77', mid: '#9cc8cd', tint: '#dcecee', sigil: 'compass' },
-  rhea: { color: '#8f1f2e', mid: '#d99ca4', tint: '#f3dcdf', sigil: 'crosshair' },
-  ilse: { color: '#8a6100', mid: '#dcc28a', tint: '#f3e8cf', sigil: 'eye' },
-  dex: { color: '#2f5486', mid: '#a6bcdc', tint: '#dde6f2', sigil: 'bars' },
-  sam: { color: '#3f6b2c', mid: '#aac899', tint: '#e1ecd9', sigil: 'book' },
+  mila: { color: '#b0446a', mid: '#e2a9bd', tint: '#f6e1e8', sigil: 'moon', voice: 'soft', ink: '#5e1f37' },
+  viktor: { color: '#5b3fa8', mid: '#bfb0e4', tint: '#e8e2f5', sigil: 'blocks', ink: '#3a2873' },
+  noor: { color: '#1f6d77', mid: '#9cc8cd', tint: '#dcecee', sigil: 'compass', voice: 'loud', ink: '#134a51' },
+  rhea: { color: '#8f1f2e', mid: '#d99ca4', tint: '#f3dcdf', sigil: 'crosshair', voice: 'heavy', ink: '#5f1220' },
+  ilse: { color: '#8a6100', mid: '#dcc28a', tint: '#f3e8cf', sigil: 'eye', ink: '#5c4100' },
+  dex: { color: '#2f5486', mid: '#a6bcdc', tint: '#dde6f2', sigil: 'bars', voice: 'mono', ink: '#1e3a60' },
+  sam: { color: '#3f6b2c', mid: '#aac899', tint: '#e1ecd9', sigil: 'book', ink: '#2a4a1c' },
 };
 
 /** A human tester: neutral ink, never mistaken for an AI persona (D5). */
@@ -31,3 +33,8 @@ export const humanLook: PersonaLook = { color: '#1d1b17', mid: '#b5afa3', tint: 
 
 /** Any other id gets a neutral look until PERSONAS.md says otherwise. */
 export const lookFor = (id: string): PersonaLook => corePanel[id] ?? { color: '#4a463e', mid: '#b5afa3', tint: '#e8e4dc', sigil: 'person' };
+
+/** A persona id as a display name: `mila` → `Mila`. */
+export const personaName = (id: string) => id.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+/** The look for a persona id, a human tester's (`human`, `00-human`…) included. */
+export const lookOf = (id: string): PersonaLook => (/human/i.test(id) ? humanLook : lookFor(id.toLowerCase()));
