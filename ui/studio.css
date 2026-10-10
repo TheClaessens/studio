@@ -136,21 +136,45 @@ a.row:focus-visible { outline-offset: -2px; }
 .inbox__group summary h2 { display: inline; }
 
 /* Media: tiles on ink (D8) */
-.media-group h3 { font-size: 22px; margin: 28px 0 12px; }
+.media { display: flex; gap: 40px; align-items: flex-start; }
+.media__rail { width: 240px; flex-shrink: 0; position: sticky; top: 0; display: flex; flex-direction: column; gap: 6px; padding: 14px 10px; background: var(--sunken); border-radius: var(--r-card); font-size: 13px; }
+.media__rail .label { padding: 0 8px; }
+.media__rail nav { display: flex; flex-direction: column; gap: 2px; }
+.media__rail nav a { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; border-radius: var(--r-control); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.media__rail nav a:hover { background: var(--raised); }
+.media__rail nav a[aria-current] { background: var(--raised); box-shadow: 0 1px 2px rgba(29, 27, 23, .08); font-weight: 600; }
+.media__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+.media__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+.media__head h1 { flex: 1; margin: 0; font-size: 44px; line-height: 1.05; }
+.media__types { display: flex; gap: 6px; }
+.media-group h2 { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; font-size: 24px; margin: 0 0 14px; }
+.media-group h2 code { background: none; padding: 0; color: var(--dim); font-size: 12px; }
 .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 14px; }
 .media-grid a { display: flex; flex-direction: column; gap: 6px; color: var(--dim); text-decoration: none; font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
-.media-grid img, .media-grid video { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: var(--ink); border-radius: 10px; display: block; }
-.media-grid a:hover img, .media-grid a:hover video { outline: 2px solid var(--accent); outline-offset: 2px; }
+.media-tile { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 10px; background: var(--ink); overflow: hidden; }
+.media-tile img, .media-tile video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.media-grid a:hover .media-tile { outline: 2px solid var(--accent); outline-offset: 2px; }
+.media-tile__file { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--outline-quiet); text-transform: uppercase; }
+.media-tile__play { position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; border-radius: 50%; background: rgba(251, 249, 245, .9); color: var(--ink); display: flex; align-items: center; justify-content: center; }
+.media-tile__count { position: absolute; right: 8px; top: 8px; display: flex; align-items: center; gap: 4px; font-family: var(--font-ui); font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent); color: var(--raised); }
 .lightbox { position: fixed; inset: 0; z-index: 10; display: flex; background: var(--stage); color: var(--on-ink); }
-.lightbox .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 28px; }
+.lightbox__main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lightbox__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--ink-raised); }
+.lightbox__bar a { display: flex; align-items: center; gap: 6px; color: var(--on-ink); text-decoration: none; font-size: 13px; }
+.lightbox__bar code { flex: 1; min-width: 0; background: none; padding: 0; color: var(--on-ink-strong); font-size: 12px; overflow-wrap: anywhere; }
+.lightbox__n { font-family: var(--font-mono); font-size: 12px; color: var(--outline-quiet); }
+.lightbox__bar button, .lightbox__stage button { display: inline-flex; align-items: center; gap: 6px; border-color: var(--ink-line); color: var(--on-ink); font-size: 12px; }
+.lightbox__stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 28px; }
+.lightbox__hint { margin: 0; padding: 0 20px 18px; text-align: center; font-size: 13px; color: var(--outline-quiet); }
 .lightbox .frame { position: relative; max-width: 100%; cursor: crosshair; user-select: none; }
-.lightbox .frame img { display: block; max-width: 100%; max-height: 82vh; border-radius: 6px; }
-.lightbox video { max-width: 100%; max-height: 78vh; border-radius: 6px; }
+.lightbox .frame img { display: block; max-width: 100%; max-height: 76vh; border-radius: 6px; }
+.lightbox video { max-width: 100%; max-height: 72vh; border-radius: 6px; }
 .lightbox .region { position: absolute; border: 2px solid var(--on-ink-strong); box-shadow: 0 0 0 9999px rgba(20, 19, 16, .55); pointer-events: none; }
-.lightbox .stage button { border-color: var(--ink-line-strong); color: var(--on-ink); }
-.lightbox aside { width: 360px; flex-shrink: 0; overflow: auto; padding: 20px; background: var(--paper); color: var(--ink); }
-.lightbox aside img { border-radius: var(--r-control); }
-.lightbox a { color: var(--accent); }
+.lightbox aside { width: 360px; flex-shrink: 0; overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--paper); color: var(--ink); }
+.lightbox__draft { display: flex; flex-direction: column; gap: 8px; }
+.lightbox__draft > img { max-width: 100%; border-radius: var(--r-control); background: var(--ink-raised); }
+.lightbox__draft .btn { align-self: flex-end; }
+.lightbox aside .pin-form { margin-bottom: 0; }
 
 @media (max-width: 1100px) {
   .reader { flex-wrap: wrap; }
@@ -158,8 +182,8 @@ a.row:focus-visible { outline-offset: -2px; }
 }
 @media (max-width: 760px) {
   .surface { padding: 20px 16px; }
-  .reader, .inbox { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 20px; }
-  .reader__rail, .reader__side, .inbox__rail { position: static; width: 100%; }
+  .reader, .inbox, .media { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 20px; }
+  .reader__rail, .reader__side, .inbox__rail, .media__rail { position: static; width: 100%; }
   .reader__side { order: 3; }
   .lightbox { flex-direction: column; overflow: auto; }
   .lightbox aside { width: 100%; }

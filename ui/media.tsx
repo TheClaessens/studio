@@ -1,13 +1,15 @@
 // The Media Surface: a grid of the `media` glob matches grouped by folder; images open in a lightbox, videos in a native player.
 // Route: `#Media/<path>`, `#Media/<path>#t=<seconds>` or `#Media/<path>#region=<x>,<y>,<w>,<h>` (normalised 0..1).
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { PinForm } from './feedback.tsx';
+import { PinForm, Row, listFeedback, type Item } from './feedback.tsx';
+import { Button, FilterPill, PinGlyph } from './design/atoms.tsx';
 import { routeHref, splitRoute } from './hash.ts';
 
 type Region = { x: number; y: number; w: number; h: number };
 export type MediaAnchor = { t?: number; region?: Region };
 
 const isVideo = (path: string) => /\.(mp4|webm|mov|m4v|ogv)$/i.test(path);
+const isImage = (path: string) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(path);
 const src = (path: string) => `/__studio/media/${encodeURI(path)}`;
 const name = (path: string) => path.split('/').at(-1)!;
 const clock = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
@@ -22,61 +24,118 @@ function parseAnchor(anchor = ''): MediaAnchor {
   return key === 'region' && [x, y, w, h].every(Number.isFinite) ? { region: { x, y, w, h } } : {};
 }
 
+type Kind = 'all' | 'image' | 'video';
+const folderOf = (f: string) => f.split('/').slice(0, -1).join('/');
+
 export function Media({ route }: { route: string }) {
   const [files, setFiles] = useState<string[]>();
+  const [folder, setFolder] = useState<string>();
+  const [kind, setKind] = useState<Kind>('all');
+  const [items, setItems] = useState<Item[]>([]);
+  const loadItems = () => void listFeedback().then((all) => setItems(all.filter((i) => i.pin.kind === 'media' && i.status !== 'closed')));
   useEffect(() => void fetch('/__studio/media').then((r) => r.json()).then(setFiles), []);
+  useEffect(loadItems, []);
   const [path, anchor] = splitRoute(route);
   if (!files) return null;
 
-  const groups = Map.groupBy(files, (f) => f.split('/').slice(0, -1).join('/'));
+  const folders = Map.groupBy(files, folderOf);
+  const shown = files.filter((f) => (folder === undefined || folderOf(f) === folder) && (kind === 'all' || (kind === 'video' ? isVideo(f) : isImage(f))));
+  const groups = Map.groupBy(shown, folderOf);
+  const count = (f: string) => items.filter((i) => i.pin.path === f).length;
   return (
-    <section>
-      <h2>Media</h2>
-      {!files.length && <p>No files match the media globs.</p>}
-      {[...groups].map(([folder, list]) => (
-        <div key={folder} className="media-group">
-          <h3>{folder || '.'}/</h3>
-          <div className="media-grid">
-            {list.map((f) => (
-              <a key={f} href={mediaHref(f)}>
-                {isVideo(f) ? <video src={`${src(f)}#t=0.1`} preload="metadata" muted /> : <img src={src(f)} alt="" loading="lazy" />}
-                {name(f)}
-              </a>
-            ))}
+    <div className="media">
+      <aside className="media__rail" aria-label="Folders">
+        <span className="label">Folders</span>
+        <nav>
+          <a href="#Media" aria-current={folder === undefined ? 'page' : undefined} onClick={(e) => (e.preventDefault(), setFolder(undefined))}>All<span className="inbox__n">{files.length}</span></a>
+          {[...folders].map(([f, list]) => (
+            <a key={f} href="#Media" aria-current={folder === f ? 'page' : undefined} onClick={(e) => (e.preventDefault(), setFolder(f))}>{f || '.'}<span className="inbox__n">{list.length}</span></a>
+          ))}
+        </nav>
+      </aside>
+      <section className="media__main">
+        <div className="media__head">
+          <h1>Media</h1>
+          <div role="group" aria-label="Type" className="media__types">
+            {(['all', 'image', 'video'] as const).map((k) => <FilterPill key={k} on={kind === k} onClick={() => setKind(k)}>{{ all: 'All', image: 'Images', video: 'Video' }[k]}</FilterPill>)}
           </div>
         </div>
-      ))}
-      {path && files.includes(path) && <Lightbox key={route} path={path} anchor={parseAnchor(anchor)} />}
-    </section>
+        {!files.length && <p>No files match the media globs.</p>}
+        {files.length > 0 && !shown.length && <p className="dim">Nothing here of that type.</p>}
+        {[...groups].map(([f, list]) => (
+          <div key={f} className="media-group">
+            <h2>{f.split('/').at(-1) || '.'} <code>{f || '.'}/</code></h2>
+            <div className="media-grid">
+              {list.map((file) => (
+                <a key={file} href={mediaHref(file)}>
+                  <span className="media-tile">
+                    {isVideo(file) ? <video src={`${src(file)}#t=0.1`} preload="metadata" muted /> : isImage(file) ? <img src={src(file)} alt="" loading="lazy" /> : <span className="media-tile__file">{file.split('.').at(-1)}</span>}
+                    {isVideo(file) && <span className="media-tile__play" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7z" /></svg></span>}
+                    {count(file) > 0 && <span className="media-tile__count" aria-label={`${count(file)} live Feedback`}><PinGlyph size={10} />{count(file)}</span>}
+                  </span>
+                  {name(file)}
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+      {path && files.includes(path) && <Lightbox key={route} path={path} anchor={parseAnchor(anchor)} list={shown.includes(path) ? shown : files} items={items.filter((i) => i.pin.path === path)} onFeedback={loadItems} />}
+    </div>
   );
 }
 
 type Draft = { pin: MediaAnchor & { label: string }; screenshot: string };
 
-function Lightbox({ path, anchor }: { path: string; anchor: MediaAnchor }) {
+const icon = (d: string) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d={d} /></svg>;
+
+/** One file on ink with the pin form beside it; ← / → step through `list`, Esc closes. */
+function Lightbox({ path, anchor, list, items, onFeedback }: { path: string; anchor: MediaAnchor; list: string[]; items: Item[]; onFeedback: () => void }) {
   const [draft, setDraft] = useState<Draft>();
+  const i = list.indexOf(path);
+  const go = (d: number) => (location.hash = mediaHref(list[(i + d + list.length) % list.length]));
   const close = () => (location.hash = 'Media');
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest('textarea, input')) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowLeft') go(-1);
+      if (e.key === 'ArrowRight') go(1);
+    };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, []);
+  }, [path, list]);
   return (
-    <div className="lightbox">
-      <div className="stage">
-        {isVideo(path) ? <VideoStage path={path} t={anchor.t} onPin={setDraft} /> : <ImageStage path={path} shown={anchor.region} onPin={setDraft} />}
+    <div className="lightbox" role="dialog" aria-label={name(path)}>
+      <div className="lightbox__main">
+        <div className="lightbox__bar">
+          <a href="#Media">{icon('M15 6l-6 6 6 6')}Media</a>
+          <code>{path}</code>
+          <span className="lightbox__n">{i + 1} / {list.length}</span>
+          <button aria-label="Previous" onClick={() => go(-1)}>{icon('M15 6l-6 6 6 6')}</button>
+          <button aria-label="Next" onClick={() => go(1)}>{icon('M9 6l6 6-6 6')}</button>
+          <button onClick={close}>Esc {icon('M6 6l12 12M18 6L6 18')}</button>
+        </div>
+        <div className="lightbox__stage">
+          {isVideo(path) ? <VideoStage path={path} t={anchor.t} onPin={setDraft} /> : <ImageStage path={path} shown={anchor.region} onPin={setDraft} />}
+        </div>
+        <p className="lightbox__hint">{isVideo(path) ? 'Pause on a moment and pin it.' : 'Drag on the image to pin a region.'}</p>
       </div>
-      <aside>
-        <p>
-          <strong>{path}</strong> <a href="#Media">close</a>
-        </p>
+      <aside aria-label="About this file">
         {draft ? (
-          <>
-            <img src={draft.screenshot} alt="" style={{ maxWidth: '100%' }} />
-            <PinForm pin={{ kind: 'media', path, ...draft.pin }} attachments={{ screenshot: draft.screenshot }} />
-          </>
+          <div className="lightbox__draft">
+            <img src={draft.screenshot} alt="" />
+            <PinForm pin={{ kind: 'media', path, ...draft.pin }} attachments={{ screenshot: draft.screenshot }} onCreated={onFeedback} />
+            <Button variant="ghost" onClick={() => setDraft(undefined)}>{isVideo(path) ? 'Clear moment' : 'Clear region'}</Button>
+          </div>
         ) : (
           <p className="dim">{isVideo(path) ? 'Pause on a moment and pin it.' : 'Drag a region on the image to pin it.'}</p>
+        )}
+        {items.length > 0 && (
+          <>
+            <span className="label">On this file</span>
+            <div className="rows rows--compact">{items.map((item) => <Row key={item.name} item={item} />)}</div>
+          </>
         )}
       </aside>
     </div>

@@ -177,3 +177,45 @@ test('personas look as PERSONAS.md says across the Playtests Surface; a human se
   assert.doesNotMatch(panel.text, /sigil: moon/); // the persona block is a card, not code
   assert.deepEqual(browser.pageErrors, []);
 });
+
+test('game-facing Surfaces: frame Pins mark the scrubber, a frame step makes a frame pinnable, media tiles count Feedback', { skip: noBrowser, timeout: 60_000 }, async (t) => {
+  const { writeFileSync, mkdirSync } = await import('node:fs');
+  const dir = tempProject({
+    'studio.json': { studio: '1.x', name: 'Game', assets: { catalogue: 'catalogue.json', view: 'viewer.html?id={id}&pose={anchor}:{t}&play={play}' }, media: ['shots'] },
+    'catalogue.json': [{ id: 'grunt', name: 'Goblin Grunt', group: 'greenskins', anchors: [{ name: 'idle' }, { name: 'walk', range: [0, 1.6] }] }],
+    'viewer.html': '<canvas width="8" height="8"></canvas>',
+  });
+  mkdirSync(`${dir}/shots`);
+  writeFileSync(`${dir}/shots/a.png`, Buffer.from(png, 'latin1'));
+  writeFileSync(`${dir}/shots/b.png`, Buffer.from(png, 'latin1'));
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+  const screenshot = `data:image/png;base64,${Buffer.from(png, 'latin1').toString('base64')}`;
+  const frame = { kind: 'asset', id: 'grunt', anchor: 'walk', t: 0.4, label: 'Goblin Grunt · walk @ 0.40' };
+  assert.equal((await postJson(`${studio.url}/__studio/feedback`, { remark: 'Foot slides', pin: frame, attachments: { screenshot } })).status, 201);
+  const region = { kind: 'media', path: 'shots/a.png', region: { x: 0, y: 0, w: 1, h: 1 }, label: 'a.png region' };
+  assert.equal((await postJson(`${studio.url}/__studio/feedback`, { remark: 'Too dark', pin: region, attachments: { screenshot } })).status, 201);
+
+  const browser = await openBrowser();
+  t.after(browser.close);
+  const until = (expr: string) => `(async () => { for (const end = Date.now() + 10000; Date.now() < end; await new Promise((r) => setTimeout(r, 100))) { const v = ${expr}; if (v) return v; } return null; })()`;
+
+  // Go-to-pin restores the frame; its Feedback is a marker on the scrubber.
+  await browser.open(`${studio.url}/__studio/#Assets/id=grunt&anchor=walk&t=0.4`);
+  assert.equal(await browser.evaluate(until(`document.querySelectorAll('.scrubber__mark').length`)), 1);
+  assert.equal(await browser.evaluate(`document.querySelector('[aria-label="Pin scope"] [aria-pressed=true]').textContent`), 'This frame');
+  // Pick the animation again (not pinnable as a frame), then step one frame: a frame is pinnable again, one step on.
+  await browser.evaluate(`[...document.querySelectorAll('[aria-label=Animation] button')].find((b) => b.textContent === 'walk').click()`);
+  assert.equal(await browser.evaluate(until(`document.querySelector('[aria-label="Pin scope"] [aria-pressed=true]')?.textContent === 'Animation'`)), true);
+  await browser.evaluate(`document.querySelector('[aria-label="Next frame"]').click()`);
+  assert.match(await browser.evaluate(until(`document.querySelector('[aria-label="Pin scope"] [aria-pressed=true]')?.textContent === 'This frame' && document.querySelector('.side q')?.textContent`)), /walk @ 0\.03$/);
+
+  // Media: the tile carries its live Feedback count; the lightbox steps to the next file with →.
+  await browser.open(`${studio.url}/__studio/?m#Media`);
+  assert.equal(await browser.evaluate(until(`document.querySelector('.media-tile__count')?.textContent`)), '1');
+  await browser.open(`${studio.url}/__studio/?l#Media/shots/a.png`);
+  assert.equal(await browser.evaluate(until(`document.querySelector('.lightbox__n')?.textContent`)), '1 / 2');
+  await browser.evaluate(`dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))`);
+  assert.equal(await browser.evaluate(until(`location.hash.endsWith('b.png') && document.querySelector('.lightbox__n')?.textContent`)), '2 / 2');
+  assert.deepEqual(browser.pageErrors, []);
+});
