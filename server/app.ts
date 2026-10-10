@@ -41,6 +41,7 @@ const declared = (section: 'docs' | 'media'): Handler => (req, res, rest, { root
 const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/schema/studio.json', (_req, res) => json(res, schema)],
   ['/__studio/surfaces', (_req, res, _rest, { manifest }) => json(res, surfaces(manifest))],
+  ['/__studio/project', (_req, res, _rest, { manifest }) => json(res, { name: manifest.name })],
   ['/__studio/kits/', (_req, res, rest) => serveFile(res, kits, rest)],
   ['/__studio/examples/', (_req, res, rest) => serveFile(res, examples, rest)],
   ['/__studio/out/', out],

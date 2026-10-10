@@ -1,0 +1,53 @@
+/* Design tokens: the single source for colour, type, space and radius (docs/design/ui-redesign.md, Tokens). */
+:root {
+  /* Surface and ink */
+  --ink: #1d1b17;
+  --ink-2: #3a362f;
+  --dim: #6b665c;
+  --line-strong: #d9d3c6;
+  --line: #e0dbd0;
+  --sunken: #ede9e1;
+  --paper: #f5f2ec;
+  --raised: #fbf9f5;
+  --accent: #b4441c;
+  --accent-strong: #8a3010;
+  --accent-soft: #f6dfd3;
+  --accent-soft-line: #e4b9a3;
+  --stage: #141310;
+
+  /* On ink (top bar, dark stages) */
+  --on-ink: #d8d3c8;
+  --on-ink-strong: #fbf9f5;
+  --on-ink-dim: #b5afa3;
+  --ink-raised: #2b2924;
+  --ink-line: #3a372f;
+  --ink-line-strong: #4a463e;
+
+  /* Severity: fill / text, both >= 4.5:1 */
+  --sev-blocker-bg: #f6d9cf;  --sev-blocker-fg: #8a2410;
+  --sev-major-bg: #f3e4c2;    --sev-major-fg: #6e4f0c;
+  --sev-minor-bg: #dbe7f3;    --sev-minor-fg: #244a72;
+  --sev-polish-bg: #e8e4dc;   --sev-polish-fg: #4a463e;
+  --outline-quiet: #8f897e;
+
+  /* Type */
+  --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-hand: 'Caveat Variable', 'Comic Sans MS', cursive;
+
+  /* Space */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-14: 56px;
+
+  /* Radius */
+  --r-control: 8px;
+  --r-card: 12px;
+  --r-panel: 16px;
+  --r-pill: 999px;
+
+  /* Legacy names still used by Surfaces not yet migrated (assets.css); remove with them. */
+  --bg: var(--paper);
+  --panel: var(--raised);
+  --text: var(--ink);
+  --acc: var(--accent);
+}
