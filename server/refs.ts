@@ -108,7 +108,8 @@ export function refs(studio: Studio) {
         const caption = inside.match(/caption:\s*"([^"]*)"/)?.[1];
         const at = inside.match(/at:\s*([\d.]+)\s*,\s*([\d.]+)/);
         for (const [, ref] of inside.matchAll(/`([^`]+)`/g)) {
-          const file = media.test(ref) ? resolveShot(ref, path) : undefined;
+          // A name without an extension (`ilse-r4-p1-d1`) is a screenshot, as `PT.shot` names them.
+          const file = media.test(ref) ? resolveShot(ref, path) : /^[\w./-]+$/.test(ref) ? resolveShot(`${ref}.png`, path) : undefined;
           if (!file) continue;
           const shot = (out.shots[file] ??= { usedIn: [] });
           if (who) shot.takenBy ??= who;

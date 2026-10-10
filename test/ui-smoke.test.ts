@@ -223,7 +223,7 @@ test('game-facing Surfaces: frame Pins mark the scrubber, a frame step makes a f
 test('cross-links: report links jump within the Studio, shots show captioned, docs and Media list where they are used', { skip: noBrowser, timeout: 60_000 }, async (t) => {
   const { writeFileSync, mkdirSync } = await import('node:fs');
   const report = ['---', 'kind: playtest-report', '---', '# Synthesis', '', '## Top issues', '1. **Lost in effects** — [mila 1](01-mila.md#pain-points/1), [Combat](../../DESIGN.md#combat)', ''].join('\n');
-  const mila = ['---', 'kind: persona-report', 'persona: mila', '---', '# Mila', '', '## Pain points', '1. **Where am I?** (shot: `out/mila-boss.png` · caption: "Can you see me?" · at: 0.4,0.5)', ''].join('\n');
+  const mila = ['---', 'kind: persona-report', 'persona: mila', '---', '# Mila', '', '## Pain points', '1. **Where am I?** (shot: `out/mila-boss.png` · caption: "Can you see me?" · at: 0.4,0.5)', '2. **Again** (shot: `mila-boss`)', ''].join('\n');
   const dir = tempProject({
     'studio.json': { studio: '1.x', name: 'Links', docs: ['DESIGN.md'], playtests: 'playtest', media: ['out'] },
     'DESIGN.md': '# Design\n\n## Combat\n',
@@ -245,6 +245,8 @@ test('cross-links: report links jump within the Studio, shots show captioned, do
   await browser.open(`${studio.url}/__studio/?b#Playtests/playtest/round-1/01-mila.md`);
   assert.equal(await browser.evaluate(until(`document.querySelector('.shot--captioned img')?.complete && document.querySelector('.shot__caption')?.textContent`)), 'Can you see me?');
   assert.equal(await browser.evaluate(`document.querySelector('.shot--captioned').getAttribute('href')`), '#Media/out/mila-boss.png');
+  // An uncaptioned shot (here named without its extension) also shows as a thumbnail under its finding; no finding moves.
+  assert.deepEqual(await browser.evaluate(`[...document.querySelectorAll('.shots a')].map((a) => [a.closest('li').id, a.getAttribute('href')])`), [['pain-points/2', '#Media/out/mila-boss.png']]);
   assert.match(await browser.evaluate(until(`document.querySelector('[aria-label="In this file"]')?.innerText.includes('Mentioned in') && document.querySelector('[aria-label="In this file"]').innerText`)), /Lost in effects/);
 
   await browser.open(`${studio.url}/__studio/?c#Docs/DESIGN.md`);
