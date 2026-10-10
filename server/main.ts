@@ -26,7 +26,7 @@ try {
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 if (!satisfiesVersion(version, manifest.studio)) {
   console.error(
-    `\n!!! WARNING: this Studio is version ${version}, outside the pin "${manifest.studio}" in studio.json.\n` +
+    `\n!!! WARNING: this Studio is version ${version}, outside the version pin "${manifest.studio}" in studio.json.\n` +
       `!!! Things may break. Run the pinned version: npx github:TheClaessens/studio#<tag> ${positionals[0] ?? '.'}\n`,
   );
 }

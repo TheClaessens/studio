@@ -86,7 +86,7 @@ test('the Studio UI is served at /__studio/', async (t) => {
   assert.match(await res.text(), /<div id="root">/);
 });
 
-test('a Studio version outside the pin warns loudly but still starts', async (t) => {
+test('a Studio version outside the version pin warns loudly but still starts', async (t) => {
   const dir = tempProject({ 'studio.json': { studio: '99.x', name: 'Future' } });
   const studio = await startStudio(dir);
   t.after(studio.stop);
