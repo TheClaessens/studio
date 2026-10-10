@@ -7,13 +7,14 @@ import { parseMarkdown, type BlockNode, type InlineNode, type ListNode, type Tab
 import { renderBlockReact, renderInlineReact, type MarkdownReactOptions } from '@tanstack/markdown/react';
 import { blockAnchors, parseBase } from '../server/slug.ts';
 import { PinGlyph, Portrait } from './design/atoms.tsx';
-import { blockComponents, readFrontmatter, studioBlocks, type Meta } from './blocks.tsx';
+import { blockComponents, readFrontmatter, refsExtension, studioBlocks, type Meta } from './blocks.tsx';
+import type { FileRefs } from './refs.ts';
 import { lookOf, personaName, personaOf } from './design/personas.ts';
 
 /** Parse and render options for one file: its frontmatter `kind` adds the Studio blocks. */
-function optionsFor(meta: Meta, persona?: string): MarkdownReactOptions {
+function optionsFor(meta: Meta, persona?: string, refs?: FileRefs): MarkdownReactOptions {
   const blocks = studioBlocks(meta, persona);
-  return { ...parseBase, extensions: [...parseBase.extensions!, ...(blocks ? [blocks] : [])], components: blockComponents };
+  return { ...parseBase, extensions: [...parseBase.extensions!, ...(blocks ? [blocks] : []), ...(refs ? [refsExtension(refs)] : [])], components: blockComponents };
 }
 
 type Href = (anchor: string) => string;
@@ -21,9 +22,10 @@ type Href = (anchor: string) => string;
 export type OutlineEntry = { id: string; text: string; depth: number };
 
 /** Renders `text`; `href(anchor)` makes each heading a link to itself, and `anchor` is scrolled into view.
- *  `counts[anchor]` marks headings and findings that already carry live Feedback; `onOutline` receives the headings. */
-export function Markdown({ text, anchor, href, items, counts, onOutline, persona }: { text: string; anchor?: string; href: Href; items?: boolean; counts?: Record<string, number>; onOutline?: (o: OutlineEntry[]) => void; persona?: string }) {
-  const parsed = useMemo(() => parse(text, !!items, persona), [text, items, persona]);
+ *  `counts[anchor]` marks headings and findings that already carry live Feedback; `onOutline` receives the headings.
+ *  `refs` sends the file's links and shot references to their Surfaces. */
+export function Markdown({ text, anchor, href, items, counts, onOutline, persona, refs }: { text: string; anchor?: string; href: Href; items?: boolean; counts?: Record<string, number>; onOutline?: (o: OutlineEntry[]) => void; persona?: string; refs?: FileRefs }) {
+  const parsed = useMemo(() => parse(text, !!items, persona, refs), [text, items, persona, refs]);
   const body = render(parsed, href, counts ?? {});
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -39,9 +41,9 @@ const plainText = (nodes: InlineNode[]): string =>
 /** How many live Feedback items an anchor carries. */
 const Count = ({ n }: { n?: number }) => (n ? <span className="pin-count" title={`${n} live Feedback`}><PinGlyph size={11} />{n}</span> : null);
 
-function parse(text: string, items: boolean, persona?: string) {
+function parse(text: string, items: boolean, persona?: string, refs?: FileRefs) {
   const meta = readFrontmatter(text);
-  const options = optionsFor(meta, persona);
+  const options = optionsFor(meta, persona, refs);
   // `studioBlocks` maps `doc.children` 1:1, so a block's index here is its index in the server's parse.
   const doc = parseMarkdown(text, options);
   const { heading, items: found } = blockAnchors(text, items);

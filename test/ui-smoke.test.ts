@@ -219,3 +219,38 @@ test('game-facing Surfaces: frame Pins mark the scrubber, a frame step makes a f
   assert.equal(await browser.evaluate(until(`location.hash.endsWith('b.png') && document.querySelector('.lightbox__n')?.textContent`)), '2 / 2');
   assert.deepEqual(browser.pageErrors, []);
 });
+
+test('cross-links: report links jump within the Studio, shots show captioned, docs and Media list where they are used', { skip: noBrowser, timeout: 60_000 }, async (t) => {
+  const { writeFileSync, mkdirSync } = await import('node:fs');
+  const report = ['---', 'kind: playtest-report', '---', '# Synthesis', '', '## Top issues', '1. **Lost in effects** — [mila 1](01-mila.md#pain-points/1), [Combat](../../DESIGN.md#combat)', ''].join('\n');
+  const mila = ['---', 'kind: persona-report', 'persona: mila', '---', '# Mila', '', '## Pain points', '1. **Where am I?** (shot: `out/mila-boss.png` · caption: "Can you see me?" · at: 0.4,0.5)', ''].join('\n');
+  const dir = tempProject({
+    'studio.json': { studio: '1.x', name: 'Links', docs: ['DESIGN.md'], playtests: 'playtest', media: ['out'] },
+    'DESIGN.md': '# Design\n\n## Combat\n',
+    'playtest/round-1/REPORT.md': report,
+    'playtest/round-1/01-mila.md': mila,
+  });
+  mkdirSync(`${dir}/out`);
+  writeFileSync(`${dir}/out/mila-boss.png`, Buffer.from(png, 'latin1'));
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+  const browser = await openBrowser();
+  t.after(browser.close);
+  const until = (expr: string) => `(async () => { for (const end = Date.now() + 10000; Date.now() < end; await new Promise((r) => setTimeout(r, 100))) { const v = ${expr}; if (v) return v; } return null; })()`;
+
+  await browser.open(`${studio.url}/__studio/?a#Playtests/playtest/round-1/REPORT.md`);
+  assert.deepEqual(await browser.evaluate(until(`(() => { const a = [...document.querySelectorAll('.markdown li a:not(.anchor)')].map((a) => a.getAttribute('href')); return a.length === 2 && a[0].startsWith('#') && a; })()`)),
+    ['#Playtests/playtest/round-1/01-mila.md#pain-points/1', '#Docs/DESIGN.md#combat']);
+
+  await browser.open(`${studio.url}/__studio/?b#Playtests/playtest/round-1/01-mila.md`);
+  assert.equal(await browser.evaluate(until(`document.querySelector('.shot--captioned img')?.complete && document.querySelector('.shot__caption')?.textContent`)), 'Can you see me?');
+  assert.equal(await browser.evaluate(`document.querySelector('.shot--captioned').getAttribute('href')`), '#Media/out/mila-boss.png');
+  assert.match(await browser.evaluate(until(`document.querySelector('[aria-label="In this file"]')?.innerText.includes('Mentioned in') && document.querySelector('[aria-label="In this file"]').innerText`)), /Lost in effects/);
+
+  await browser.open(`${studio.url}/__studio/?c#Docs/DESIGN.md`);
+  assert.match(await browser.evaluate(until(`document.querySelector('[aria-label="In this file"]')?.innerText.includes('Mentioned in') && document.querySelector('[aria-label="In this file"]').innerText`)), /Lost in effects[\s\S]*REPORT\.md → Combat/);
+
+  await browser.open(`${studio.url}/__studio/?d#Media/out/mila-boss.png`);
+  assert.match(await browser.evaluate(until(`document.querySelector('.lightbox aside')?.innerText.includes('Used in') && document.querySelector('.lightbox aside').innerText`)), /Taken by\s*Mila[\s\S]*Used in[\s\S]*Can you see me\?/);
+  assert.deepEqual(browser.pageErrors, []);
+});

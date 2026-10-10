@@ -98,6 +98,11 @@ horde-survival ARPG: three ~3.5 min acts, a boss per act, level-up card drafts, 
 ## Budget
 Spend your effort on playing and observing. Use the run count in your persona and ~8–20 screenshots, and stop when you have enough evidence. Never read game source to explain a feeling.
 
+## Shots and links
+
+- **A shot reference** names the file as `PT.shot` saved it, from the Game Project root, in backticks: ``(shot: `{outDir}/<persona>-<name>.png`)``. Add a caption when the point isn't obvious, and where in the frame to look (`at: x,y`, 0–1 from the top-left): ``(shot: `…png` · caption: "I can't find myself here" · at: 0.42,0.55)``. The Studio shows the shot beside your words, with the caption, and lists your report under the shot in Media.
+- **A link to the design doc** is a relative markdown link to the section: `[Combat](../../../DESIGN.md#combat)`. The anchor is the heading's GitHub slug (lowercase, punctuation dropped, spaces to `-`). Link a section only when your finding is about what it says.
+
 ## Report — write `{report dir}/<NN>-<persona>.md` with exactly these sections
 
 Start with the frontmatter block exactly as shown: the Studio reads it to show the report as yours (`persona` is your id from `PERSONAS.md`, the same one as in the file name).
@@ -115,7 +120,7 @@ persona: <id>
 | Run | Character / mode | Result (where, time, level) | Build in one line | Rewards | Note |
 
 ## Highlights (what worked — keep these)
-- ... [evidence tag] (shot: `...png`)
+- ... [evidence tag] (shot: `playtest/out/<persona>-<name>.png` · caption: "what to look at" · at: 0.42,0.55)
 
 ## Pain points (ranked, worst first)
 1. **<title>** — what happened, when, why it matters for this persona. [evidence tag] · Severity: blocker/major/minor/polish

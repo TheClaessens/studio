@@ -2,7 +2,9 @@
 // Route: `#Media/<path>`, `#Media/<path>#t=<seconds>` or `#Media/<path>#region=<x>,<y>,<w>,<h>` (normalised 0..1).
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { PinForm, Row, listFeedback, type Item } from './feedback.tsx';
-import { Button, FilterPill, PinGlyph } from './design/atoms.tsx';
+import { Button, FilterPill, PinGlyph, Portrait, Sigil } from './design/atoms.tsx';
+import { isHuman, lookOf, personaName } from './design/personas.ts';
+import { placeHref, useRefs, type Refs } from './refs.ts';
 import { routeHref, splitRoute } from './hash.ts';
 
 type Region = { x: number; y: number; w: number; h: number };
@@ -32,6 +34,8 @@ export function Media({ route }: { route: string }) {
   const [folder, setFolder] = useState<string>();
   const [kind, setKind] = useState<Kind>('all');
   const [items, setItems] = useState<Item[]>([]);
+  const [takers, setTakers] = useState<string[]>([]);
+  const refs = useRefs();
   const loadItems = () => void listFeedback().then((all) => setItems(all.filter((i) => i.pin.kind === 'media' && i.status !== 'closed')));
   useEffect(() => void fetch('/__studio/media').then((r) => r.json()).then(setFiles), []);
   useEffect(loadItems, []);
@@ -39,7 +43,11 @@ export function Media({ route }: { route: string }) {
   if (!files) return null;
 
   const folders = Map.groupBy(files, folderOf);
-  const shown = files.filter((f) => (folder === undefined || folderOf(f) === folder) && (kind === 'all' || (kind === 'video' ? isVideo(f) : isImage(f))));
+  const takenBy = (f: string) => refs?.shots[f]?.takenBy;
+  const panel = [...new Set(files.map(takenBy).filter((id): id is string => !!id))];
+  const shown = files.filter((f) => (folder === undefined || folderOf(f) === folder) && (kind === 'all' || (kind === 'video' ? isVideo(f) : isImage(f))) && (!takers.length || takers.includes(takenBy(f)!)));
+  const toggle = (id: string) => setTakers((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]));
+  const who = (id: string) => (isHuman(id) ? 'Human tester' : personaName(id));
   const groups = Map.groupBy(shown, folderOf);
   const count = (f: string) => items.filter((i) => i.pin.path === f).length;
   return (
@@ -52,6 +60,18 @@ export function Media({ route }: { route: string }) {
             <a key={f} href="#Media" aria-current={folder === f ? 'page' : undefined} onClick={(e) => (e.preventDefault(), setFolder(f))}>{f || '.'}<span className="inbox__n">{list.length}</span></a>
           ))}
         </nav>
+        {panel.length > 0 && (
+          <>
+            <span className="label">Taken by</span>
+            <div className="media__takers" role="group" aria-label="Taken by">
+              {panel.map((id) => (
+                <button key={id} aria-pressed={takers.includes(id)} aria-label={who(id)} title={who(id)} onClick={() => toggle(id)}>
+                  <Portrait look={lookOf(id)} size={32} label={who(id)} />
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </aside>
       <section className="media__main">
         <div className="media__head">
@@ -71,6 +91,7 @@ export function Media({ route }: { route: string }) {
                   <span className="media-tile">
                     {isVideo(file) ? <video src={`${src(file)}#t=0.1`} preload="metadata" muted /> : isImage(file) ? <img src={src(file)} alt="" loading="lazy" /> : <span className="media-tile__file">{file.split('.').at(-1)}</span>}
                     {isVideo(file) && <span className="media-tile__play" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7z" /></svg></span>}
+                    {takenBy(file) && <span className="media-tile__who"><Sigil look={lookOf(takenBy(file)!)} size={20} label={who(takenBy(file)!)} /></span>}
                     {count(file) > 0 && <span className="media-tile__count" aria-label={`${count(file)} live Feedback`}><PinGlyph size={10} />{count(file)}</span>}
                   </span>
                   {name(file)}
@@ -80,7 +101,7 @@ export function Media({ route }: { route: string }) {
           </div>
         ))}
       </section>
-      {path && files.includes(path) && <Lightbox key={route} path={path} anchor={parseAnchor(anchor)} list={shown.includes(path) ? shown : files} items={items.filter((i) => i.pin.path === path)} onFeedback={loadItems} />}
+      {path && files.includes(path) && <Lightbox key={route} path={path} anchor={parseAnchor(anchor)} list={shown.includes(path) ? shown : files} items={items.filter((i) => i.pin.path === path)} onFeedback={loadItems} shot={refs?.shots[path]} />}
     </div>
   );
 }
@@ -90,7 +111,7 @@ type Draft = { pin: MediaAnchor & { label: string }; screenshot: string };
 const icon = (d: string) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d={d} /></svg>;
 
 /** One file on ink with the pin form beside it; ← / → step through `list`, Esc closes. */
-function Lightbox({ path, anchor, list, items, onFeedback }: { path: string; anchor: MediaAnchor; list: string[]; items: Item[]; onFeedback: () => void }) {
+function Lightbox({ path, anchor, list, items, onFeedback, shot }: { path: string; anchor: MediaAnchor; list: string[]; items: Item[]; onFeedback: () => void; shot?: Refs['shots'][string] }) {
   const [draft, setDraft] = useState<Draft>();
   const i = list.indexOf(path);
   const go = (d: number) => (location.hash = mediaHref(list[(i + d + list.length) % list.length]));
@@ -122,6 +143,24 @@ function Lightbox({ path, anchor, list, items, onFeedback }: { path: string; anc
         <p className="lightbox__hint">{isVideo(path) ? 'Pause on a moment and pin it.' : 'Drag on the image to pin a region.'}</p>
       </div>
       <aside aria-label="About this file">
+        {shot?.takenBy && (
+          <div className="lightbox__who">
+            <Portrait look={lookOf(shot.takenBy)} size={64} label={isHuman(shot.takenBy) ? 'Human tester' : personaName(shot.takenBy)} />
+            <div><span className="label">Taken by</span><span className="lightbox__name">{isHuman(shot.takenBy) ? 'Human tester' : personaName(shot.takenBy)}</span></div>
+          </div>
+        )}
+        {shot && (
+          <>
+            <span className="label">Used in</span>
+            <div className="rows rows--compact">
+              {shot.usedIn.map((u, i) => (
+                <a key={i} className="row" href={placeHref(u)}>
+                  <span className="row__text"><span className="row__label">{u.caption || u.label}</span><span className="dim">{u.path.slice(u.path.lastIndexOf('/') + 1)}{u.anchor && ` · ${u.anchor}`}</span></span>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
         {draft ? (
           <div className="lightbox__draft">
             <img src={draft.screenshot} alt="" />

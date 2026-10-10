@@ -31,10 +31,11 @@ It prints the Studio's URL, `http://localhost:<port>/__studio/` (port 5170 unles
 ```json
 "play": { "entry": "index.html", "adapter": "playtest/adapter.js" },
 "playtests": "playtest",
+"media": ["playtest/out"],
 "out": { "playtest": "playtest/out" }
 ```
 
-`playtests` is the folder that holds `PERSONAS.md`, `BRIEF.md`, the persona portraits and the rounds (`rounds/round-N/`); the Studio finds a `round-N` folder anywhere under it, and leaves the `out` folders to Media. `PT.shot` PUTs screenshots to the Studio, which writes them to `out.playtest`; read them from disk there. Set the adapter's `outDir` to the same folder.
+`playtests` is the folder that holds `PERSONAS.md`, `BRIEF.md`, the persona portraits and the rounds (`rounds/round-N/`); the Studio finds a `round-N` folder anywhere under it, and leaves the `out` folders to Media: list `out.playtest` under `media` so the screenshots the reports cite open there. `PT.shot` PUTs screenshots to the Studio, which writes them to `out.playtest`; read them from disk there. Set the adapter's `outDir` to the same folder.
 
 | Kit file | Role |
 |---|---|

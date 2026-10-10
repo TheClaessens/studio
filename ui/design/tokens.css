@@ -34,6 +34,7 @@
   --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
   --font-ui: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-hand: 'Caveat Variable', 'Segoe Print', cursive;
 
   /* Space */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-14: 56px;

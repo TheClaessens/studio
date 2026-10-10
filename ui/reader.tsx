@@ -1,9 +1,11 @@
 // The reading layout shared by Docs and Playtests: file rail, the file (rendered or as source), and a right rail with
 // the file's outline and the Feedback already pinned in it.
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Markdown, type OutlineEntry } from './markdown.tsx';
 import { PinForm, Row, useFileFeedback } from './feedback.tsx';
-import { Segmented } from './design/atoms.tsx';
+import { Segmented, Sigil } from './design/atoms.tsx';
+import { fileRefs, placeHref, useRefs } from './refs.ts';
+import { isHuman, lookOf, personaName } from './design/personas.ts';
 
 type Props = {
   /** The Surface's own file list. */
@@ -28,6 +30,10 @@ export function Reader({ rail, kind, path, text, markdown, body, anchor, href, i
   const [view, setView] = useState<'rendered' | 'source'>('rendered');
   const [outline, setOutline] = useState<OutlineEntry[]>([]);
   const feedback = useFileFeedback(kind, path);
+  const refs = useRefs();
+  const mine = useMemo(() => fileRefs(refs, path), [refs, path]);
+  // Links from other files into this one: "Mentioned in" (S5).
+  const mentions = refs?.links.filter((l) => l.to.path === path && l.from.path !== path) ?? [];
   useEffect(() => (setView('rendered'), setOutline([])), [path]);
 
   const [label, setLabel] = useState<string>();
@@ -54,7 +60,7 @@ export function Reader({ rail, kind, path, text, markdown, body, anchor, href, i
         {label !== undefined && <PinForm key={`${path}#${anchor}`} pin={{ kind, path, anchor, label }} onCreated={feedback.reload} />}
         {body}
         {text !== undefined && (rendered ? (
-          <Markdown text={text} anchor={anchor} href={href} items={items} counts={feedback.counts} onOutline={setOutline} persona={persona} />
+          <Markdown text={text} anchor={anchor} href={href} items={items} counts={feedback.counts} onOutline={setOutline} persona={persona} refs={mine} />
         ) : (
           <pre className="reader__source">{text}</pre>
         ))}
@@ -71,6 +77,25 @@ export function Reader({ rail, kind, path, text, markdown, body, anchor, href, i
               </a>
             ))}
           </nav>
+        )}
+        {mentions.length > 0 && (
+          <div className="reader__feedback">
+            <span className="label">Mentioned in</span>
+            <div className="rows rows--compact">
+              {mentions.map((l, i) => {
+                const who = l.from.path.match(/(?:^|\/)\d+-([\w.-]+)\.md$/)?.[1];
+                return (
+                  <a key={i} className="row" href={placeHref(l.from)}>
+                    {who ? <Sigil look={lookOf(who)} size={20} label={isHuman(who) ? 'Human session' : personaName(who)} /> : null}
+                    <span className="row__text">
+                      <span className="row__label">{l.from.label || l.from.path}</span>
+                      <span className="dim">{l.from.path.slice(l.from.path.lastIndexOf('/') + 1)}{l.to.anchor && ` → ${l.to.label}`}</span>
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
         )}
         {feedback.items.length > 0 && (
           <div className="reader__feedback">

@@ -4,6 +4,7 @@ import '@fontsource-variable/newsreader/opsz.css';
 import '@fontsource-variable/newsreader/opsz-italic.css';
 import '@fontsource-variable/geist/index.css';
 import '@fontsource-variable/geist-mono/index.css';
+import '@fontsource-variable/caveat/index.css';
 import './design/tokens.css';
 import { Workbench } from './assets.tsx';
 import { Docs } from './docs.tsx';

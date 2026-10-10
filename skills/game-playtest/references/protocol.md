@@ -99,7 +99,7 @@ build: "<version/date>"
 Not verified, worth a quick check: …
 
 ## 4. Top issues (ranked by severity × reach × pillar impact)
-| # | Issue | Sev. | Raised by | Evidence | Recommended change | Effort |
+| # | Issue | Sev. | Raised by | Evidence (links to persona findings, doc sections) | Recommended change | Effort |
 Smaller polish: …
 
 ## 5. What to keep (consensus praise)
@@ -117,6 +117,12 @@ Smaller polish: …
 
 ## Appendix — persona reports
 ```
+
+**Links, not prose (K2).** Every finding in the executive summary and the Top issues table links where it came from, so the Studio can jump between them and show each persona finding as cited:
+- the persona findings it merges: `[mila 2](01-mila.md#pain-points-ranked-worst-first/2)`, one link per persona, in `Evidence`;
+- the design-doc section it touches: `[DESIGN §Combat](../../../DESIGN.md#combat)`.
+
+Links are relative to `REPORT.md`. An anchor is the heading's GitHub slug (lowercase, punctuation dropped, spaces to `-`, `-1`, `-2` for repeats); a finding is `<heading slug>/<n>`, the n-th numbered item under that heading. Check each link resolves before you publish: the Studio lists a broken one nowhere.
 
 **Frontmatter.** Keep the block at the top as shown: the Studio reads `kind` to show the file as a synthesis, with severity badges, verdict tags and who raised each issue. In the Top issues table, `Raised by` lists persona ids, comma-separated (`mila, noor, ilse`), and `Sev.` is one word: blocker, major, minor or polish.
 

@@ -143,6 +143,13 @@ a.row:focus-visible { outline-offset: -2px; }
 .media__rail nav a { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; border-radius: var(--r-control); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
 .media__rail nav a:hover { background: var(--raised); }
 .media__rail nav a[aria-current] { background: var(--raised); box-shadow: 0 1px 2px rgba(29, 27, 23, .08); font-weight: 600; }
+.media__takers { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px; }
+.media__takers button { padding: 0; border: 0; background: none; opacity: .45; }
+.media__takers button[aria-pressed='true'], .media__takers:not(:has([aria-pressed='true'])) button { opacity: 1; }
+.media-tile__who { position: absolute; left: 8px; bottom: 8px; display: flex; }
+.lightbox__who { display: flex; gap: 12px; align-items: center; }
+.lightbox__who > div { display: flex; flex-direction: column; }
+.lightbox__name { font-family: var(--font-display); font-size: 22px; line-height: 1.1; }
 .media__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
 .media__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
 .media__head h1 { flex: 1; margin: 0; font-size: 44px; line-height: 1.05; }
@@ -247,3 +254,11 @@ a.row:focus-visible { outline-offset: -2px; }
 .markdown-alert-tip .markdown-alert-title { color: #3f6b2c; }
 .markdown-alert-important { border-color: var(--accent-soft-line); background: var(--accent-soft); color: var(--accent-strong); }
 .tile .meter, .scores .meter { flex: none; }
+.shot { display: inline-flex; align-items: center; gap: 6px; margin: 2px 2px; padding: 2px 8px 2px 2px; border-radius: var(--r-control); background: var(--sunken); color: var(--ink-2); font-family: var(--font-mono); font-size: 11px; text-decoration: none; vertical-align: middle; }
+.markdown a.shot { color: var(--ink-2); }
+.shot img, .shot video { width: 40px; height: 24px; object-fit: cover; border-radius: 5px; background: var(--ink); }
+.shot--captioned { display: inline-flex; flex-direction: column; align-items: stretch; gap: 4px; width: 240px; max-width: 100%; padding: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-card); vertical-align: top; }
+.shot__frame { position: relative; display: block; }
+.shot--captioned img, .shot--captioned video { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.shot__at { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border: 2px solid var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px rgba(251, 249, 245, .8); }
+.shot__caption { font-family: var(--font-hand); font-size: 24px; font-weight: 600; line-height: 1.1; color: var(--ink); }

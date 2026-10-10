@@ -5,6 +5,8 @@ import { useState, type ReactNode } from 'react';
 import type { BlockNode, ComponentNode, InlineComponentNode, InlineNode, MarkdownExtension, TableCellNode, TableNode } from '@tanstack/markdown';
 import { FilterPill, HandsMeter, Meter, Portrait, Segmented, SeverityBadge, Sigil, Tag, VerdictTag, isSeverity, type Hands, type Verdict } from './design/atoms.tsx';
 import { lookOf, personaName, personaOf } from './design/personas.ts';
+import { routeHref } from './hash.ts';
+import type { FileRefs } from './refs.ts';
 
 const isHands = (h: string): h is Hands => ['casual', 'average', 'expert'].includes(h);
 
@@ -153,6 +155,18 @@ function findingsFence(b: BlockNode): ComponentNode | undefined {
   return undefined;
 }
 
+/** Links to the Game Project's docs and reports go to their Surface; shot references become thumbnails (K2, K4). */
+export function refsExtension(refs: FileRefs): MarkdownExtension {
+  const walk = (nodes: InlineNode[]): InlineNode[] =>
+    nodes.map((n) => {
+      if (n.type === 'link' && refs.links.has(n.href)) return { ...n, href: refs.links.get(n.href)!, children: walk(n.children) };
+      const shot = n.type === 'inlineCode' ? refs.shots.get(n.value) : undefined;
+      if (shot) return inline('shot', { file: shot.file, caption: shot.caption ?? '', at: shot.at?.join(',') ?? '' });
+      return 'children' in n && n.type !== 'inlineComponent' ? ({ ...n, children: walk(n.children) } as InlineNode) : n;
+    });
+  return { name: 'studio-refs', transformInline: walk };
+}
+
 /** PERSONAS.md: each persona's `persona` fence (server/personas.ts reads the same fences) becomes its card. */
 const personaCards: MarkdownExtension = {
   name: 'studio-personas',
@@ -234,6 +248,21 @@ function PersonaCard({ id }: { id: string }) {
         </span>
       </div>
     </div>
+  );
+}
+
+/** A shot a report refers to, opening in Media; with a caption it is a captioned shot, `at` marking the spot. */
+function Shot({ file, caption, at }: Record<'file' | 'caption' | 'at', string>) {
+  const src = `/__studio/media/${encodeURI(file)}`;
+  const [x, y] = at.split(',').map(Number);
+  const video = /\.(mp4|webm|mov|m4v)$/i.test(file);
+  const thumb = video ? <video src={`${src}#t=0.1`} preload="metadata" muted /> : <img src={src} alt="" loading="lazy" />;
+  if (!caption) return <a className="shot" href={routeHref('Media', file)} title={file}>{thumb}<span>{file.slice(file.lastIndexOf('/') + 1)}</span></a>;
+  return (
+    <a className="shot shot--captioned" href={routeHref('Media', file)} title={file}>
+      <span className="shot__frame">{thumb}{at && <span className="shot__at" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} aria-hidden="true" />}</span>
+      <span className="shot__caption">{caption}</span>
+    </a>
   );
 }
 
@@ -328,4 +357,5 @@ export const blockComponents = {
   'studio-lane': Lane,
   'studio-findings': Findings,
   'studio-persona-card': PersonaCard,
+  'studio-shot': Shot,
 };
