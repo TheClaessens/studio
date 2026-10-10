@@ -1,0 +1,8 @@
+{
+  "$schema": "http://localhost:5170/__studio/schema/studio.json",
+  "studio": "1.x",
+  "name": "Static Only",
+  "playtests": "playtest",
+  "media": ["media"],
+  "docs": ["README.md", "docs/**/*.md"]
+}

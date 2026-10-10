@@ -1,0 +1,19 @@
+:root {
+  --bg: #14161a;
+  --panel: #1c1f25;
+  --line: #2c313a;
+  --text: #e6e8eb;
+  --dim: #8b93a1;
+  --acc: #f0a63a;
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
+.studio { display: flex; height: 100%; }
+nav { width: 180px; background: var(--panel); border-right: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+nav h1 { font-size: 15px; margin: 0 0 12px; }
+nav a { color: var(--text); text-decoration: none; padding: 6px 8px; border-radius: 4px; }
+nav a.off { color: var(--dim); }
+nav a.on { background: var(--line); color: var(--acc); }
+main { flex: 1; padding: 24px; overflow: auto; }
+pre { background: var(--panel); border: 1px solid var(--line); padding: 12px; border-radius: 4px; }
+code { color: var(--acc); }
