@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Workbench } from './assets.tsx';
 
 type Surface = { name: string; section: string; setUp: boolean; config?: unknown; example?: unknown };
 
@@ -44,6 +45,7 @@ function SurfaceView({ surface }: { surface: Surface }) {
       </section>
     );
   }
+  if (surface.name === 'Assets') return <Workbench assets={surface.config as { catalogue: string; view: string }} />;
   return (
     <section>
       <h2>{surface.name}</h2>
