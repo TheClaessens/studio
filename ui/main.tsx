@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Workbench } from './assets.tsx';
 import { Docs } from './docs.tsx';
 import { Feedback } from './feedback.tsx';
 
@@ -48,6 +49,7 @@ function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
       </section>
     );
   }
+  if (surface.name === 'Assets') return <Workbench assets={surface.config as { catalogue: string; view: string }} />;
   if (surface.name === 'Docs') return <Docs route={route} />;
   return (
     <section>
