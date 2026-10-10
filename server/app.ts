@@ -29,6 +29,14 @@ function surfaces(manifest: Manifest) {
   );
 }
 
+/** Lists a section's glob matches, and serves only those. */
+const declared = (section: 'docs' | 'media'): Handler => (req, res, rest, { root, manifest }) => {
+  const files = globFiles(root, manifest[section]);
+  if (!rest) return json(res, files);
+  if (!files.includes(rest.slice(1))) return send(res, 404, 'Not found');
+  serveFile(res, root, rest, req.headers.range);
+};
+
 // First matching prefix wins. Later Surfaces add their routes here.
 const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/schema/studio.json', (_req, res) => json(res, schema)],
@@ -38,15 +46,11 @@ const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/out/', out],
   ['/__studio/catalogue', async (_req, res, _rest, { root, manifest }) =>
     manifest.assets ? json(res, await loadCatalogue(root, manifest.assets.catalogue, manifest.assets.view)) : send(res, 404, 'No assets section in studio.json')],
-  ['/__studio/docs', (_req, res, rest, { root, manifest }) => {
-    const docs = globFiles(root, manifest.docs);
-    if (!rest) return json(res, docs);
-    if (!docs.includes(rest.slice(1))) return send(res, 404, 'Not found');
-    serveFile(res, root, rest);
-  }],
+  ['/__studio/docs', declared('docs')],
+  ['/__studio/media', declared('media')],
   ['/__studio/feedback', feedbackRoute],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
-  ['/', (_req, res, rest, { root }) => serveFile(res, root, rest)],
+  ['/', (req, res, rest, { root }) => serveFile(res, root, rest, req.headers.range)],
 ];
 
 export function createStudioServer(studio: Studio) {
