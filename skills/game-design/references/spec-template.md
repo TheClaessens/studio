@@ -3,6 +3,10 @@
 Copy this skeleton and fill every `<…>` with real values. An implementer reading one section should be able to build it without asking a question. If you catch yourself writing an adjective where a number belongs, stop and pick the number. Simulation will correct it later.
 
 ```markdown
+---
+kind: design-spec
+version: "<X.Y>"
+---
 # <GAME> — Game Design v<X.Y> (LOCKED)
 
 > <One-sentence pitch: who you are, what you do, how it ends.>

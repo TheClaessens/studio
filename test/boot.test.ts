@@ -77,6 +77,15 @@ test('the six Surfaces are listed; an absent section is "not set up" with an exa
   assert.equal(typeof byName.Feedback.example, 'string');
 });
 
+test('the Game Project name is served for the top bar', async (t) => {
+  const studio = await startStudio(fixture('static-only'));
+  t.after(studio.stop);
+
+  const res = await fetch(`${studio.url}/__studio/project`);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { name: 'Static Only' });
+});
+
 test('the Studio UI is served at /__studio/', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);

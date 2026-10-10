@@ -7,7 +7,7 @@ import { fixture, startStudio, tempProject, postJson } from './harness.ts';
 
 const p = 'playtest/';
 
-test('rounds are listed latest first, with layout files marked as markdown and the rest raw', async (t) => {
+test('rounds are listed latest first, and every markdown file, in a round or loose, is marked as markdown', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);
 
@@ -28,12 +28,12 @@ test('rounds are listed latest first, with layout files marked as markdown and t
         files: [
           { path: `${p}round-1/01-mila.md`, markdown: true },
           { path: `${p}round-1/06-dex-data.json`, markdown: false },
-          { path: `${p}round-1/NEXT.md`, markdown: false },
+          { path: `${p}round-1/NEXT.md`, markdown: true },
           { path: `${p}round-1/REPORT.md`, markdown: true },
         ],
       },
     ],
-    files: [{ path: `${p}BRIEF.md`, markdown: false }],
+    files: [{ path: `${p}BRIEF.md`, markdown: true }],
   });
 });
 
@@ -69,6 +69,17 @@ test('Feedback pinned to a finding is written to disk and resolves by heading or
   for (const [pin, resolved] of pins) assert.equal(items.find((i) => i.pin.label === pin.label)?.resolved, resolved, pin.label);
 });
 
+test('a numbered line that cannot start a list after a paragraph is no finding', async (t) => {
+  const dir = tempProject({ 'studio.json': { studio: '1.x', name: 'S', playtests: 'playtest' }, 'playtest/round-1/REPORT.md': '## S\n\n**Next:**\n6. a\n7. b\n\n1. c\n' });
+  const studio = await startStudio(dir);
+  t.after(studio.stop);
+
+  const anchors = ['s/1', 's/2', 's/3'];
+  for (const anchor of anchors) await postJson(`${studio.url}/__studio/feedback`, { remark: 'x', pin: finding('round-1/REPORT.md', anchor, anchor) });
+  const items: { pin: { label: string }; resolved: boolean }[] = await (await fetch(`${studio.url}/__studio/feedback`)).json();
+  assert.deepEqual(Object.fromEntries(items.map((i) => [i.pin.label, i.resolved])), { 's/1': true, 's/2': false, 's/3': false });
+});
+
 test('a listed playtest file is read by its Game Project path; anything else is refused', async (t) => {
   const studio = await startStudio(fixture('static-only'));
   t.after(studio.stop);
@@ -81,21 +92,24 @@ test('a listed playtest file is read by its Game Project path; anything else is 
   }
 });
 
-test("the skill's default rounds/round-N layout is found too; no section lists nothing", async (t) => {
+test("the skill's default rounds/round-N layout is found too, without the out folder; no section lists nothing", async (t) => {
   const dir = tempProject({
-    'studio.json': { studio: '1.x', name: 'S', playtests: 'playtest' },
+    'studio.json': { studio: '1.x', name: 'S', playtests: 'playtest', out: { playtest: 'playtest/out' } },
     'playtest/rounds/round-1/REPORT.md': '# R',
-    'playtest/rounds/round-1/shots/a.md': '# not layout',
+    'playtest/rounds/round-1/shots/a.md': '# notes',
+    'playtest/out/mila-boss.png': 'png',
+    'playtest/PERSONAS.md': '# Personas',
   });
   const studio = await startStudio(dir);
   t.after(studio.stop);
   assert.deepEqual(await (await fetch(`${studio.url}/__studio/playtests`)).json(), {
     rounds: [{ name: 'round-1', files: [
       { path: 'playtest/rounds/round-1/REPORT.md', markdown: true },
-      { path: 'playtest/rounds/round-1/shots/a.md', markdown: false },
+      { path: 'playtest/rounds/round-1/shots/a.md', markdown: true },
     ] }],
-    files: [],
+    files: [{ path: 'playtest/PERSONAS.md', markdown: true }],
   });
+  assert.equal((await fetch(`${studio.url}/__studio/playtests/playtest/out/mila-boss.png`)).status, 404); // a shot is Media
 
   const none = await startStudio(tempProject({ 'studio.json': { studio: '1.x', name: 'N' }, 'round-1/REPORT.md': '# R' }));
   t.after(none.stop);

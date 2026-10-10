@@ -69,3 +69,21 @@ test('skills give the URLs the Studio actually prints and serves', () => {
     assert.doesNotMatch(text, /<url>\/promo\//, `${f}: the promo page is at the root, not under the printed /__studio/ URL`);
   }
 });
+
+test("the playtest skill's portrait script writes a 32 × 32 PNG from palette rows", async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'portrait-'));
+  const rows = Array.from({ length: 32 }, (_, y) => (y < 16 ? '.' : 'a').repeat(32));
+  writeFileSync(join(dir, 'p.json'), JSON.stringify({ palette: { '.': '#f6e1e8', a: '#b0446a' }, rows }));
+  const script = new URL('../skills/game-playtest/templates/portrait.mjs', import.meta.url).pathname;
+  execFileSync(process.execPath, [script, join(dir, 'p.json'), join(dir, 'personas/mila.png')]);
+  const png = readFileSync(join(dir, 'personas/mila.png'));
+  assert.equal(png.subarray(1, 4).toString(), 'PNG');
+  assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [32, 32]);
+
+  writeFileSync(join(dir, 'bad.json'), JSON.stringify({ palette: { '.': '#fff' }, rows: rows.slice(1) }));
+  assert.throws(() => execFileSync(process.execPath, [script, join(dir, 'bad.json'), join(dir, 'bad.png')], { stdio: 'pipe' }));
+});

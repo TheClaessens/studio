@@ -41,6 +41,29 @@ Adapt the names, voice and questions to the game. Keep the domain split.
 | 13 | **Ola** | Motor-accessibility | Input load, hold-vs-toggle, timing windows, auto-aim/auto-cast options, one-hand play | casual | Sonnet |
 | 14 | **Remy** | Streamer / spectator | Clip-worthy moments, readability for viewers, spectacle peaks, dead air, shareability | average | Sonnet |
 
+## Identity: colour, sigil, voice
+
+The Studio shows each persona by a sigil, a colour and a portrait, and sets their verdict and quotes in their voice. Shape comes first and colour second, so two personas never share a sigil. Copy these into the persona's `persona` block in `PERSONAS.md` (below); a game may change them there.
+
+| id | Colour | Mid | Tint | Sigil | Voice |
+|---|---|---|---|---|---|
+| mila | `#b0446a` | `#e2a9bd` | `#f6e1e8` | moon | soft |
+| viktor | `#5b3fa8` | `#bfb0e4` | `#e8e2f5` | blocks | soft |
+| noor | `#1f6d77` | `#9cc8cd` | `#dcecee` | compass | loud |
+| rhea | `#8f1f2e` | `#d99ca4` | `#f3dcdf` | crosshair | heavy |
+| ilse | `#8a6100` | `#dcc28a` | `#f3e8cf` | eye | soft |
+| dex | `#2f5486` | `#a6bcdc` | `#dde6f2` | bars | mono |
+| sam | `#3f6b2c` | `#aac899` | `#e1ecd9` | book | soft |
+| kai | `#b35a14` | `#e5b48a` | `#f6e6d8` | bolt | heavy |
+| bea | `#4f5d6b` | `#b3bcc6` | `#e4e8ec` | crack | mono |
+| theo | `#0e7c66` | `#93cbbd` | `#d9eee8` | hourglass | loud |
+| jun | `#6b6b1e` | `#c8c88f` | `#ececd8` | grid | mono |
+| ines | `#7a3b8f` | `#c9a3d6` | `#efe2f3` | quill | soft |
+| ola | `#7a5230` | `#cdb39b` | `#efe6dd` | hand | loud |
+| remy | `#c03a2b` | `#e8a79f` | `#f8e0dd` | signal | loud |
+
+Sigils: moon, blocks, compass, crosshair, eye, bars, book, bolt, crack, hourglass, grid, quill, hand, signal. Voices: `soft` (italic serif), `loud` (upright serif), `heavy` (bold sans), `mono`. A persona you invent picks an unused sigil first, then a colour that reads at 4.5:1 on its tint.
+
 ## Panel recipes
 
 | Genre | Panel |
@@ -59,6 +82,44 @@ Always add the user's own personas. Keep the panel at 5–8 agents: more than th
 ## Play plans and questions
 
 Each block is what goes into the project's `PERSONAS.md`, adapted to the game.
+
+### `PERSONAS.md` format
+
+`PERSONAS.md` sits at the playtests root (the folder studio.json's `playtests` names), with `kind: personas` frontmatter. The archetype table comes first; then one section per persona that opens with a `persona` block of flat `key: value` lines, then its **Play plan** and **Questions** lists. The Studio reads these blocks to show each persona across its reports, so keep the keys exactly:
+
+````markdown
+---
+kind: personas
+---
+# <Game> — playtester personas
+
+| # | Persona | Archetype | Focus domain | Hands | Save | Model |
+|---|---|---|---|---|---|---|
+
+## 1. Mila — cozy casual
+```persona
+id: mila
+archetype: Cozy casual
+quote: I play to unwind. Make it pretty, make me feel strong, don't make me read a manual.
+color: #b0446a
+mid: #e2a9bd
+tint: #f6e1e8
+sigil: moon
+voice: soft
+hands: casual
+save: fresh
+model: Sonnet
+look: round glasses, knitted beanie, oversized cardigan, warm smile
+portrait: personas/mila.png
+```
+**Play plan**
+- …
+
+**Questions**
+- …
+````
+
+`id` is the one in the report file names (`01-mila.md`) and in `Raised by`. `look` is what the portrait shows; `portrait` is relative to `PERSONAS.md`.
 
 ### 1. Mila — cozy casual
 *"I play to unwind. Make it pretty, make me feel strong, don't make me read a manual."*

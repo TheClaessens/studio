@@ -30,11 +30,12 @@ It prints the Studio's URL, `http://localhost:<port>/__studio/` (port 5170 unles
 
 ```json
 "play": { "entry": "index.html", "adapter": "playtest/adapter.js" },
-"playtests": "playtest/rounds",
+"playtests": "playtest",
+"media": ["playtest/out"],
 "out": { "playtest": "playtest/out" }
 ```
 
-`PT.shot` PUTs screenshots to the Studio, which writes them to `out.playtest`; read them from disk there. Set the adapter's `outDir` to the same folder.
+`playtests` is the folder that holds `PERSONAS.md`, `BRIEF.md`, the persona portraits and the rounds (`rounds/round-N/`); the Studio finds a `round-N` folder anywhere under it, and leaves the `out` folders to Media: list `out.playtest` under `media` so the screenshots the reports cite open there. `PT.shot` PUTs screenshots to the Studio, which writes them to `out.playtest`; read them from disk there. Set the adapter's `outDir` to the same folder.
 
 | Kit file | Role |
 |---|---|
@@ -95,7 +96,15 @@ Each persona gets **one focus domain**, a hands level, a save profile (fresh, or
 - **Haiku** where the work is numeric or text-centric with an exact brief (balance batches, completionist ledgers).
 - Avoid Opus playtesters unless the user asks; the orchestrator is the expensive model in the loop.
 
-Write `PERSONAS.md` for the project: an archetype table plus a section per persona with its play plan and the questions it must answer.
+Write `PERSONAS.md` at the playtests root in the format in `references/personas.md`: `kind: personas` frontmatter, an archetype table, then a section per persona that opens with its `persona` block (id, archetype, quote, colour, sigil, voice, hands, save, model, look, portrait) and lists its play plan and the questions it must answer. Take colours, sigils and voices from the identity table there.
+
+**Portraits, once.** When a persona first joins the project's panel, draw its portrait; keep it for every later round and never redraw it. A portrait is a 32 × 32 pixel-art bust in the house style: head and shoulders, front three-quarter view, a hard 1-px outline in the persona's colour darkened, at most 8 colours, no anti-aliasing, flat lighting from the upper left, on a flat ground of the persona's tint. The `look` line says what the persona wears and carries; the mood comes from their quote. Write the 32 rows as palette keys in a JSON file and run this skill's `templates/portrait.mjs` to save `personas/<id>.png` under the playtests root:
+
+```sh
+node <skill>/templates/portrait.mjs mila.json playtest/personas/mila.png
+```
+
+Read the PNG back to check it before you move on. The Studio shows the portrait at 32, 64 or 128 px and falls back to the sigil while there is none.
 
 ### 4. Write the shared brief
 Copy `references/brief-template.md` to the project as `BRIEF.md` and fill in:
@@ -142,6 +151,9 @@ Write `rounds/round-N/REPORT.md` with the template in `references/protocol.md`. 
 
 Publish or share it the way the user wants. Save non-obvious harness lessons to memory.
 
+### Human sessions
+A human's playtest goes through the same format, so the synthesis weighs it like any persona report and the Studio marks it as human, never as an AI persona. When the user passes on a human tester's notes (chat, a call, a form), write them up as `rounds/round-N/00-human.md` (`00-human-<name>.md` when there are several) from `references/human-session-template.md`: their words quoted, each finding tagged with its area, a severity only where the tester's words support one, and the findings JSON block. Don't add scores or a verdict the tester didn't give.
+
 ### 8. Next rounds
 Re-run the same panel after changes and diff the findings JSON blocks. Re-run the analyst's batches with n ≥ 8 per cell to confirm balance moves. Avoid tuning on fewer runs: single runs are anecdotes.
 
@@ -160,6 +172,8 @@ More in `references/gotchas.md`.
 ## Reference files
 - `references/personas.md`: a library of 14 personas with domains, hands levels, models, play plans and questions, plus panel recipes per genre.
 - `references/brief-template.md`: the shared playtester brief, the harness how-to and the report template.
+- `references/human-session-template.md`: the write-up of a human tester's session.
+- `templates/portrait.mjs`: writes a persona's 32 × 32 portrait PNG from palette rows.
 - `references/protocol.md`: the launch prompt, the verification routine, the synthesis REPORT template and cost notes.
 - `references/adapter-guide.md`: an audit checklist and adapter recipes per engine and genre, plus calibration.
 - `references/gotchas.md`: the full list with fixes.

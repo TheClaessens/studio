@@ -1,57 +1,57 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import '@fontsource-variable/newsreader/opsz.css';
+import '@fontsource-variable/newsreader/opsz-italic.css';
+import '@fontsource-variable/geist/index.css';
+import '@fontsource-variable/geist-mono/index.css';
+import '@fontsource-variable/caveat/index.css';
+import './design/tokens.css';
 import { Workbench } from './assets.tsx';
 import { Docs } from './docs.tsx';
 import { Media } from './media.tsx';
-import { Feedback } from './feedback.tsx';
+import { Feedback, listFeedback } from './feedback.tsx';
 import { Playtests } from './playtests.tsx';
 import { Play } from './play.tsx';
-
-type Surface = { name: string; section: string; setUp: boolean; value?: unknown; example?: unknown };
+import { NotSetUp, Shell, TopBar, type Surface } from './shell.tsx';
+import { loadPanel } from './design/personas.ts';
 
 // `#<Surface>/<surface route>`; the route stays encoded for the Surface to decode (see hash.ts).
 const current = () => location.hash.slice(1);
 
 function Studio() {
   const [surfaces, setSurfaces] = useState<Surface[]>([]);
+  const [project, setProject] = useState<string>();
   const [selected, setSelected] = useState(current);
+  const [waiting, setWaiting] = useState(0);
 
   useEffect(() => {
     fetch('/__studio/surfaces').then((r) => r.json()).then(setSurfaces);
+    fetch('/__studio/project').then((r) => r.json()).then((p: { name: string }) => setProject(p.name));
     const onHash = () => setSelected(current());
     addEventListener('hashchange', onHash);
     return () => removeEventListener('hashchange', onHash);
   }, []);
+  // Feedback that agents addressed and that waits for the human; refreshed on every navigation and after inbox changes.
+  const refreshWaiting = () => void listFeedback().then((items) => setWaiting(items.filter((i) => i.status === 'addressed').length));
+  useEffect(refreshWaiting, [selected]);
+  useEffect(() => void (document.title = project ? `${project} · Studio` : 'Studio'), [project]);
+  // Another Surface or file starts at the top; a route with an anchor is scrolled to it by the Surface instead.
+  const place = selected.split('#')[0];
+  useEffect(() => {
+    if (!selected.includes('#')) document.querySelector('.surface')?.scrollTo(0, 0);
+  }, [place]);
 
   const surface = surfaces.find((s) => s.name === selected.split('/')[0]) ?? surfaces[0];
   return (
-    <div className="studio">
-      <nav>
-        <h1>Studio</h1>
-        {surfaces.map((s) => (
-          <a key={s.name} href={`#${s.name}`} className={s === surface ? 'on' : s.setUp ? '' : 'off'}>
-            {s.name}
-          </a>
-        ))}
-      </nav>
-      <main>{surface && <SurfaceView surface={surface} route={selected.split('/').slice(1).join('/')} />}</main>
-    </div>
+    <Shell bar={<TopBar project={project} surfaces={surfaces} current={surface} waiting={waiting} />}>
+      {surface && <SurfaceView surface={surface} onFeedback={refreshWaiting} route={selected.split('/').slice(1).join('/')} />}
+    </Shell>
   );
 }
 
-function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
-  if (surface.name === 'Feedback') return <Feedback setUp={surface.setUp} />; // absent section: default `feedback/`
-  if (!surface.setUp) {
-    return (
-      <section>
-        <h2>{surface.name}: not set up</h2>
-        <p>
-          Add a <code>{surface.section}</code> section to <code>studio.json</code> to turn this Surface on, for example:
-        </p>
-        <pre>{JSON.stringify({ [surface.section]: surface.example }, null, 2)}</pre>
-      </section>
-    );
-  }
+function SurfaceView({ surface, route, onFeedback }: { surface: Surface; route: string; onFeedback: () => void }) {
+  if (surface.name === 'Feedback') return <Feedback setUp={surface.setUp} onChange={onFeedback} />; // absent section: default `feedback/`
+  if (!surface.setUp) return <NotSetUp surface={surface} />;
   if (surface.name === 'Assets') return <Workbench assets={surface.value as { catalogue: string; view: string }} />;
   if (surface.name === 'Docs') return <Docs route={route} />;
   if (surface.name === 'Playtests') return <Playtests route={route} />;
@@ -65,4 +65,5 @@ function SurfaceView({ surface, route }: { surface: Surface; route: string }) {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<Studio />);
+// Persona looks are read synchronously while rendering, so the panel loads first.
+loadPanel().then(() => createRoot(document.getElementById('root')!).render(<Studio />));

@@ -8,6 +8,8 @@ import { loadCatalogue } from './catalogue.ts';
 import { globFiles } from './globs.ts';
 import { feedbackRoute } from './feedback.ts';
 import { playtestsRoute } from './playtests.ts';
+import { personasRoute } from './personas.ts';
+import { refsRoute } from './refs.ts';
 import type { Manifest } from './manifest.ts';
 
 export type Studio = { root: string; manifest: Manifest };
@@ -41,6 +43,7 @@ const declared = (section: 'docs' | 'media'): Handler => (req, res, rest, { root
 const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/schema/studio.json', (_req, res) => json(res, schema)],
   ['/__studio/surfaces', (_req, res, _rest, { manifest }) => json(res, surfaces(manifest))],
+  ['/__studio/project', (_req, res, _rest, { manifest }) => json(res, { name: manifest.name })],
   ['/__studio/kits/', (_req, res, rest) => serveFile(res, kits, rest)],
   ['/__studio/examples/', (_req, res, rest) => serveFile(res, examples, rest)],
   ['/__studio/out/', out],
@@ -50,6 +53,8 @@ const routes: [prefix: string, handler: Handler][] = [
   ['/__studio/media', declared('media')],
   ['/__studio/feedback', feedbackRoute],
   ['/__studio/playtests', playtestsRoute],
+  ['/__studio/personas', personasRoute],
+  ['/__studio/refs', refsRoute],
   ['/__studio/', (_req, res, rest) => serveFile(res, ui, rest)],
   ['/', (req, res, rest, { root }) => serveFile(res, root, rest, req.headers.range)],
 ];

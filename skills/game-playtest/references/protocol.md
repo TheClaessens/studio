@@ -3,18 +3,20 @@
 ## Project layout
 
 ```
-playtest/
+playtest/          ← studio.json `playtests`
   adapter.js      ← the per-game adapter (from the skill's templates/adapter.template.js; studio.json play.adapter)
   PERSONAS.md     ← the panel for this game (from references/personas.md)
   BRIEF.md        ← shared brief + report template (from references/brief-template.md)
+  personas/       ← <id>.png portraits, drawn once per persona (templates/portrait.mjs)
   out/            ← screenshots (studio.json out.playtest; the Studio writes PT.shot PUTs here)
   rounds/
     round-1/
+      00-human.md ← a human tester's session, when there is one
       01-<persona>.md … NN-<persona>.md, *-data.json
       REPORT.md   ← the synthesis
 ```
 
-If the project already keeps design docs elsewhere (e.g. `design/`), PERSONAS/BRIEF/rounds can live there; point studio.json `playtests` at the rounds root. The Kit is never in the project: the adapter imports it from `/__studio/kits/playtest/`.
+If the project already keeps design docs elsewhere (e.g. `design/`), PERSONAS/BRIEF/personas/rounds can live there; point studio.json `playtests` at the folder that holds `PERSONAS.md`. The Kit is never in the project: the adapter imports it from `/__studio/kits/playtest/`.
 
 The Studio is the only server: `npx github:TheClaessens/studio#semver:<pin> .` from the Game Project root, `<pin>` being studio.json's `"studio"` (e.g. `1.x`). If the session has a preview browser, make that the one Studio entry in `.claude/launch.json` and start it from there, not from a shell.
 
@@ -76,6 +78,11 @@ Reference-round examples:
 ## Synthesis REPORT template
 
 ```markdown
+---
+kind: playtest-report
+round: N
+build: "<version/date>"
+---
 # <GAME> — Simulated Playtest, Round N · Synthesis
 **Build:** <version/date> · **Method:** <protocol link> · **Personas:** <link>
 **Testers:** N AI personas (<models>), ~X hand-drafted runs + Y batch runs, Z screenshots; top claims verified in-engine.
@@ -92,7 +99,7 @@ Reference-round examples:
 Not verified, worth a quick check: …
 
 ## 4. Top issues (ranked by severity × reach × pillar impact)
-| # | Issue | Sev. | Raised by | Evidence | Recommended change | Effort |
+| # | Issue | Sev. | Raised by | Evidence (links to persona findings, doc sections) | Recommended change | Effort |
 Smaller polish: …
 
 ## 5. What to keep (consensus praise)
@@ -101,14 +108,23 @@ Smaller polish: …
 | Tension | Side A (personas) | Side B (personas) | Suggested resolution |
 
 ## 7. Recommended backlog
-**Now** (bugs/blockers, small) · **Next** (core clarity & balance) · **Later** (retention, larger)
-End "Next" with "re-run the analyst batches (n ≥ 8) to re-baseline".
+- **Now** (bugs/blockers, small): …
+- **Next** (core clarity & balance): …; end with "re-run the analyst batches (n ≥ 8) to re-baseline"
+- **Later** (retention, larger): …
 
 ## 8. Harness caveats & next-round improvements
 <bot ceiling and calibration, crutch usage, what was not evaluated (audio, real-time feel), auto-pick usage, cost>
 
 ## Appendix — persona reports
 ```
+
+**Links, not prose (K2).** Every finding in the executive summary and the Top issues table links where it came from, so the Studio can jump between them and show each persona finding as cited:
+- the persona findings it merges: `[mila 2](01-mila.md#pain-points-ranked-worst-first/2)`, one link per persona, in `Evidence`;
+- the design-doc section it touches: `[DESIGN §Combat](../../../DESIGN.md#combat)`.
+
+Links are relative to `REPORT.md`. An anchor is the heading's GitHub slug (lowercase, punctuation dropped, spaces to `-`, `-1`, `-2` for repeats); a finding is `<heading slug>/<n>`, the n-th numbered item under that heading. Check each link resolves before you publish: the Studio lists a broken one nowhere.
+
+**Frontmatter.** Keep the block at the top as shown: the Studio reads `kind` to show the file as a synthesis, with severity badges, verdict tags and who raised each issue. In the Top issues table, `Raised by` lists persona ids, comma-separated (`mila, noor, ilse`), and `Sev.` is one word: blocker, major, minor or polish.
 
 **Ranking rule.** Score each issue by three factors:
 - **Severity:** blocker 4, major 3, minor 2, polish 1.

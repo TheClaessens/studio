@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Card, PinForm, listFeedback, type Item, type Pin } from './feedback.tsx';
 import { capture, dataUrl, loadCapture } from './capture.ts';
+import { Segmented } from './design/atoms.tsx';
 import { viewTemplate, viewUrl } from '../server/view.ts';
 import './assets.css';
 
@@ -13,7 +14,6 @@ export type Pose = { asset: Asset; anchor: Anchor; t: number; playing: boolean; 
 
 const start = (asset: Asset): Pose => ({ asset, anchor: asset.anchors[0], t: asset.anchors[0]?.range?.[0] ?? 0, playing: false, scrubbed: false });
 
-
 const assetItems = (items: Item[]) => items.filter((i) => i.pin.kind === 'asset');
 
 export function Workbench({ assets }: { assets: { catalogue: string; view: string; capture?: string } }) {
@@ -22,6 +22,7 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
   const [pose, setPose] = useState<Pose>();
   const [items, setItems] = useState<Item[]>([]);
   const [showUnresolved, setShowUnresolved] = useState(false);
+  const [filter, setFilter] = useState('');
   const frame = useRef<HTMLIFrameElement>(null);
   const loadItems = () => listFeedback().then((all) => setItems(assetItems(all)));
   useEffect(() => void loadItems(), []);
@@ -56,53 +57,60 @@ export function Workbench({ assets }: { assets: { catalogue: string; view: strin
   }, [catalogue]);
 
   if (error) return <pre className="error">{error}</pre>;
-  const groups = Map.groupBy(catalogue, (a) => a.group);
+  const q = filter.trim().toLowerCase();
+  const shown = q ? catalogue.filter((a) => [a.name, a.id, a.group].some((s) => s.toLowerCase().includes(q))) : catalogue;
+  const groups = Map.groupBy(shown, (a) => a.group);
   const openCount = (id: string) => items.filter((i) => i.pin.id === id && i.resolved && i.status === 'open').length;
   const groupCount = (list: Asset[]) => list.reduce((sum, a) => sum + openCount(a.id), 0);
   const unresolved = items.filter((i) => !i.resolved && i.status !== 'closed');
   const shoot = async () => ({
     screenshot: await dataUrl(await capture(frame.current!.contentWindow!, await loadCapture(assets.capture))),
   });
+  const Count = ({ n }: { n: number }) => (n > 0 ? <span className="count" aria-label={`${n} open`}>{n}</span> : null);
 
   return (
     <div className="workbench">
-      <aside className="tree">
+      <aside className="tree" aria-label="Catalogue">
+        <label className="tree__filter">
+          <span className="sr-only">Filter assets</span>
+          <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter assets" />
+        </label>
         {[...groups].map(([group, list]) => (
           <div key={group}>
-            <h3>
-              {group} {groupCount(list) > 0 && <span className="count">{groupCount(list)}</span>}
-            </h3>
+            <h3>{group} <Count n={groupCount(list)} /></h3>
             {list.map((a) => (
               <button
                 key={a.id}
-                className={a.id === pose?.asset.id && !showUnresolved ? 'on' : ''}
+                aria-current={a.id === pose?.asset.id && !showUnresolved ? 'true' : undefined}
                 onClick={() => (setPose(start(a)), setShowUnresolved(false))}
               >
-                {a.name} {openCount(a.id) > 0 && <span className="count">{openCount(a.id)}</span>}
+                <span>{a.name}</span> <Count n={openCount(a.id)} />
               </button>
             ))}
           </div>
         ))}
+        {q && !shown.length && <p className="dim">No asset matches “{filter}”.</p>}
         {unresolved.length > 0 && (
           <div>
             <h3>Unresolved pins</h3>
-            <button className={showUnresolved ? 'on' : ''} onClick={() => setShowUnresolved(true)}>
-              Pin not found <span className="count">{unresolved.length}</span>
+            <button aria-current={showUnresolved ? 'true' : undefined} onClick={() => setShowUnresolved(true)}>
+              <span>Pin not found</span> <Count n={unresolved.length} />
             </button>
           </div>
         )}
       </aside>
-      {pose && <Stage view={assets.view} pose={pose} setPose={setPose} frame={frame} />}
-      <aside className="side">
+      {pose && <Stage view={assets.view} pose={pose} setPose={setPose} frame={frame} frames={items.filter((i) => i.pin.id === pose.asset.id && i.status !== 'closed')} />}
+      <aside className="side" aria-label="Feedback on this asset">
         {showUnresolved ? (
           <>
-            <h3>Unresolved pins</h3>
+            <span className="label">Unresolved pins</span>
             {unresolved.map((item) => <Card key={item.name} item={item} onChange={loadItems} />)}
           </>
         ) : (
           pose && (
             <>
               <NewFeedback pose={pose} shoot={shoot} onCreated={loadItems} />
+              {items.some((i) => i.pin.id === pose.asset.id) && <span className="label">On this asset</span>}
               {items.filter((i) => i.pin.id === pose.asset.id).map((item) => <Card key={item.name} item={item} onChange={loadItems} />)}
             </>
           )
@@ -128,58 +136,74 @@ function NewFeedback({ pose, shoot, onCreated }: { pose: Pose; shoot: () => Prom
     scope === 'asset' ? { kind: 'asset', id: asset.id, label: asset.name } :
     scope === 'animation' ? { kind: 'asset', id: asset.id, anchor: anchor.name, label: `${asset.name} · ${anchor.name}` } :
     { kind: 'asset', id: asset.id, anchor: anchor.name, t: +t.toFixed(2), label: `${asset.name} · ${anchor.name} @ ${t.toFixed(2)}` };
-  const labels: Record<Scope, string> = { asset: 'This asset', animation: 'This animation', frame: 'This frame' };
   return (
     <div className="new-feedback">
-      <div className="scopes">
-        {(Object.keys(labels) as Scope[]).map((s) => (
-          <label key={s} className={can[s] ? '' : 'dim'} title={s === 'frame' && !can.frame ? 'Pause and scrub to pin a frame' : undefined}>
-            <input type="radio" name="scope" checked={scope === s} disabled={!can[s]} onChange={() => setChosen(s)} /> {labels[s]}
-          </label>
-        ))}
-      </div>
+      <span className="label">Pin to</span>
+      <Segmented label="Pin scope" value={scope} onChange={setChosen} options={[
+        { value: 'asset', label: 'This asset' },
+        { value: 'animation', label: 'Animation', disabled: !can.animation },
+        { value: 'frame', label: 'This frame', disabled: !can.frame },
+      ]} />
+      {!can.frame && anchor?.range && <p className="dim">Pause and scrub, or step a frame, to pin a frame.</p>}
       <PinForm pin={pin} attach={shoot} onCreated={onCreated} />
     </div>
   );
 }
 
+const icon = (d: string, fill = false) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke={fill ? 'none' : 'currentColor'} strokeWidth="2" aria-hidden="true"><path d={d} /></svg>
+);
 
-function Stage({ view: kind, pose, setPose, frame }: { view: string; pose: Pose; setPose: (p: Pose) => void; frame: RefObject<HTMLIFrameElement | null> }) {
+/** The view on ink, its animation chips and the transport: play, frame step, scrubber with a marker per frame Pin. */
+function Stage({ view: kind, pose, setPose, frame, frames }: { view: string; pose: Pose; setPose: (p: Pose) => void; frame: RefObject<HTMLIFrameElement | null>; frames: Item[] }) {
   const view = viewTemplate(kind, pose.asset);
   const [scrub, setScrub] = useState(pose.t);
   useEffect(() => setScrub(pose.t), [pose.t]);
-  const { anchor } = pose;
-  const commit = () => setPose({ ...pose, t: scrub, scrubbed: true });
+  const { anchor, asset } = pose;
+  const at = (t: number) => setPose({ ...pose, t, playing: false, scrubbed: true });
+  const range = anchor?.range;
+  // ponytail: anchors carry no frame rate, so a frame step is 1/60 of the range; add one to the catalogue if steps must match the game's frames.
+  const step = range ? (range[1] - range[0]) / 60 : 0;
+  const pct = (t: number) => (range ? ((t - range[0]) / (range[1] - range[0] || 1)) * 100 : 0);
+  const marks = frames.filter((i) => i.pin.anchor === anchor?.name && typeof i.pin.t === 'number');
 
   return (
-    <div className="stage">
-      <iframe ref={frame} className="view" src={viewUrl(view, pose)} title={pose.asset.name} />
-      <div className="anchors">
-        {view.includes('{play}') && (
-          <button onClick={() => setPose({ ...pose, playing: !pose.playing, scrubbed: false })}>{pose.playing ? 'Pause' : 'Play'}</button>
-        )}
-        {pose.asset.anchors.map((a) => (
-          <button key={a.name} className={a.name === anchor?.name ? 'on' : ''} onClick={() => setPose({ ...pose, anchor: a, t: a.range?.[0] ?? 0, scrubbed: false })}>
-            {a.name}
-          </button>
-        ))}
-        {anchor?.range && (
-          <label>
-            <input
-              type="range"
-              min={anchor.range[0]}
-              max={anchor.range[1]}
-              step={0.01}
-              value={scrub}
-              disabled={pose.playing}
-              onChange={(e) => setScrub(+e.target.value)}
-              onPointerUp={commit}
-              onKeyUp={commit}
-            />
-            {scrub.toFixed(2)}
-          </label>
-        )}
+    <main className="stage">
+      <div className="stage__bar">
+        <span className="stage__name">{asset.name}</span>
+        <code>{asset.id}</code>
+        <div className="stage__chips" role="group" aria-label="Animation">
+          {asset.anchors.map((a) => (
+            <button key={a.name} aria-pressed={a.name === anchor?.name} onClick={() => setPose({ ...pose, anchor: a, t: a.range?.[0] ?? 0, scrubbed: false })}>{a.name}</button>
+          ))}
+        </div>
       </div>
-    </div>
+      <iframe ref={frame} className="view" src={viewUrl(view, pose)} title={asset.name} />
+      {(view.includes('{play}') || range) && (
+        <div className="transport">
+          {view.includes('{play}') && (
+            <button className="transport__play" aria-label={pose.playing ? 'Pause' : 'Play'} onClick={() => setPose({ ...pose, playing: !pose.playing, scrubbed: false })}>
+              {icon(pose.playing ? 'M7 4h3v16H7zM14 4h3v16h-3z' : 'M7 4l13 8-13 8z', true)}
+            </button>
+          )}
+          {range && (
+            <>
+              <button aria-label="Previous frame" disabled={pose.playing} onClick={() => at(Math.max(range[0], scrub - step))}>{icon('M15 6l-6 6 6 6')}</button>
+              <button aria-label="Next frame" disabled={pose.playing} onClick={() => at(Math.min(range[1], scrub + step))}>{icon('M9 6l6 6-6 6')}</button>
+              <div className="scrubber">
+                <input type="range" aria-label="Time" min={range[0]} max={range[1]} step={0.01} value={scrub} disabled={pose.playing}
+                  onChange={(e) => setScrub(+e.target.value)} onPointerUp={() => at(scrub)} onKeyUp={() => at(scrub)} />
+                {marks.map((i) => (
+                  <button key={i.name} className="scrubber__mark" style={{ left: `${pct(i.pin.t as number)}%` }} aria-label={`Feedback at ${i.pin.t}`} title={i.pin.label}
+                    onClick={() => at(i.pin.t as number)} />
+                ))}
+              </div>
+              <span className="transport__time">{scrub.toFixed(2)} / {range[1].toFixed(2)}</span>
+              {!pose.playing && pose.scrubbed && <span className="transport__chip">Paused · pinnable</span>}
+            </>
+          )}
+        </div>
+      )}
+    </main>
   );
 }

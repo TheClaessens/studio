@@ -1,9 +1,10 @@
 // The Docs Surface: a file tree of the `docs` globs, the selected doc rendered as markdown.
 // Route: `#Docs/<path>#<heading anchor>`.
 import { useEffect, useState } from 'react';
-import { Markdown } from './markdown.tsx';
-import { PinForm } from './feedback.tsx';
+import { Reader } from './reader.tsx';
 import { routeHref, splitRoute } from './hash.ts';
+import { useRefs } from './refs.ts';
+import { LockGlyph } from './markdown.tsx';
 
 type Tree = { [name: string]: Tree | string };
 
@@ -20,19 +21,20 @@ function toTree(paths: string[]) {
 
 const link = (path: string, anchor?: string) => routeHref('Docs', path, anchor);
 
-function TreeView({ tree, selected }: { tree: Tree; selected: string }) {
+/** `locked`: docs whose title says `(LOCKED)`, a locked design spec. */
+function TreeView({ tree, selected, locked }: { tree: Tree; selected: string; locked: Set<string> }) {
   return (
     <ul>
       {Object.entries(tree).map(([name, node]) =>
         typeof node === 'string' ? (
           <li key={name}>
-            <a href={link(node)} className={node === selected ? 'on' : ''}>{name}</a>
+            <a href={link(node)} className={node === selected ? 'on' : ''}>{name}{locked.has(node) && <span className="locked" aria-label="locked"> <LockGlyph /></span>}</a>
           </li>
         ) : (
           <li key={name}>
             <details open>
               <summary>{name}/</summary>
-              <TreeView tree={node} selected={selected} />
+              <TreeView tree={node} selected={selected} locked={locked} />
             </details>
           </li>
         ),
@@ -47,6 +49,8 @@ export function Docs({ route }: { route: string }) {
   const [text, setText] = useState<string>();
   const [path, anchor] = splitRoute(route);
   const selected = path || docs[0];
+  const refs = useRefs();
+  const locked = new Set(refs?.places.filter((p) => !p.anchor && /\(LOCKED\)/.test(p.label)).map((p) => p.path));
 
   useEffect(() => {
     fetch('/__studio/docs').then((r) => r.json()).then(setDocs);
@@ -55,18 +59,14 @@ export function Docs({ route }: { route: string }) {
     setText(undefined);
     if (selected) fetch(`/__studio/docs/${encodeURI(selected)}`).then((r) => (r.ok ? r.text() : `Not a declared doc: ${selected}`)).then(setText);
   }, [selected]);
-  // A heading Pin quotes the heading as rendered at pin time.
-  const [label, setLabel] = useState<string>();
-  useEffect(() => setLabel(anchor ? document.getElementById(anchor)?.textContent ?? undefined : undefined), [text, anchor]);
 
   return (
-    <div className="docs">
-      <aside>{docs.length ? <TreeView tree={toTree(docs)} selected={selected} /> : <p>No files match the docs globs.</p>}</aside>
-      <div className="doc">
-        {label !== undefined && <PinForm key={`${selected}#${anchor}`} pin={{ kind: 'doc', path: selected, anchor, label }} />}
-        {text !== undefined && <Markdown text={text} anchor={anchor} href={(a) => link(selected, a)} />}
-        {label === undefined && text !== undefined && <p className="dim">Click a heading to pin Feedback to its section.</p>}
-      </div>
-    </div>
+    <Reader
+      rail={docs.length ? <TreeView tree={toTree(docs)} selected={selected} locked={locked} /> : <p>No files match the docs globs.</p>}
+      kind="doc" path={selected ?? ''} text={text} markdown anchor={anchor} href={(a) => link(selected, a)}
+      // A heading Pin quotes the heading as rendered at pin time.
+      labelOf={(el) => el.textContent ?? undefined}
+      hint="Click a heading to pin Feedback to its section."
+    />
   );
 }
