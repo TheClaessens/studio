@@ -22,3 +22,22 @@ jobs:
       - run: npm run check
         env:
           STUDIO_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+
+  # `#semver:` pins only resolve to tagged versions, so tag each version that lands on main.
+  tag:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - run: |
+          tag="v$(node -p "require('./package.json').version")"
+          git rev-parse -q --verify "refs/tags/$tag" >/dev/null && exit 0
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git tag -a "$tag" -m "Studio $tag"
+          git push origin "$tag"
