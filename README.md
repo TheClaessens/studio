@@ -32,7 +32,7 @@ It validates `<game-dir>/studio.json` (schema at `/__studio/schema/studio.json`)
 
 or for any agent with `npx skills add TheClaessens/studio`. Skills import Kits from the running Studio (`/__studio/kits/…`) and launch it with `npx github:TheClaessens/studio#semver:<pin> .`, `<pin>` being `studio.json`'s `"studio"`. Starter code a skill hands over (the portal platform layer) is copied into the game, which owns it.
 
-`package.json`, `.claude-plugin/plugin.json` and its `marketplace.json` entry carry one version; bump all three together and tag the release `v<version>` so `#semver:` pins resolve. The npm package leaves `skills/` out: both installers read this git repo.
+`package.json`, `.claude-plugin/plugin.json` and its `marketplace.json` entry carry one version; bump all three together; CI tags `v<version>` when it lands on `main` so `#semver:` pins resolve. The npm package leaves `skills/` out: both installers read this git repo.
 
 ## Develop
 
